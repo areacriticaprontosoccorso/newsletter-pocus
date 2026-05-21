@@ -6,7 +6,7 @@ Tutte le credenziali vengono dai GitHub Secrets / variabili d'ambiente
 import os
 
 ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
-ANTHROPIC_MODEL    = "claude-opus-4-5"
+ANTHROPIC_MODEL    = "claude-sonnet-4-6"
 GMAIL_USER         = os.environ.get("GMAIL_USER_POCUS", "")
 NCBI_EMAIL         = "francesco.panero@aslcittaditorino.it"
 NCBI_TOOL          = "pocus_weekly_digest_torino"
