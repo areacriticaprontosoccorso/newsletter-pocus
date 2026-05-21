@@ -21,6 +21,19 @@ import config as cfg
 
 DESTINATARI = [
     "francesco.panero@aslcittaditorino.it",
+    "pietro.tizzani@aslcittaditorino.it",
+    "jacopo.pieroni@aslcittaditorino.it",
+    "marcella.converso@aslcittaditorino.it",
+    "valeria.milazzo@aslcittaditorino.it",
+    "manuela.valle@aslcittaditorino.it",
+    "giulia.cavalot@aslcittaditorino.it",
+    "marta.cravino@aslcittaditorino.it",
+    "saradelcolle@aslcittaditorino.it",
+    "paolo.petitti@aslcittaditorino.it",
+    "immacolata.andria@aslcittaditorino.it",
+    "massimo.perotto@gmail.com",
+    "elvira.fanelli@aslcittaditorino.it",
+    "daniela.viscovo@aslcittaditorino.it",
 ]
 
 RIVISTE_POCUS = [
