@@ -1,6 +1,6 @@
 """
 POCUS Weekly Digest — Newsletter ecografia d'urgenza
-Pronto Soccorso San Giovanni Bosco, Torino
+Emergency Ultrasound School in Turin, San Giovanni Bosco, Torino
 Comando: python newsletter_pocus.py
 """
 
