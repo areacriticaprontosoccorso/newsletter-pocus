@@ -28,7 +28,7 @@ DESTINATARI = [
     "manuela.valle@aslcittaditorino.it",
     "giulia.cavalot@aslcittaditorino.it",
     "marta.cravino@aslcittaditorino.it",
-    "saradelcolle@aslcittaditorino.it",
+    "sara.delcolle@aslcittaditorino.it",
     "paolo.petitti@aslcittaditorino.it",
     "immacolata.andria@aslcittaditorino.it",
     "massimo.perotto@gmail.com",
