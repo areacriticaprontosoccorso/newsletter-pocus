@@ -1,0 +1,41 @@
+name: Unsubscribe
+
+on:
+  repository_dispatch:
+    types: [unsubscribe]
+
+jobs:
+  remove-subscriber:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Remove email from subscribers
+        run: |
+          EMAIL="${{ github.event.client_payload.email }}"
+
+          if [ -z "$EMAIL" ]; then
+            echo "No email provided"
+            exit 1
+          fi
+
+          python3 -c "
+import json
+with open('subscribers.json') as f:
+    subs = json.load(f)
+subs = [s for s in subs if s['email'] != '$EMAIL']
+with open('subscribers.json', 'w') as f:
+    json.dump(subs, f, indent=2)
+print('removed')
+"
+
+      - name: Commit changes
+        run: |
+          git config user.name "newsletter-bot"
+          git config user.email "bot@newsletter-pocus"
+          git add subscribers.json
+          git diff --staged --quiet || git commit -m "Unsubscribe: ${{ github.event.client_payload.email }}"
+          git push

@@ -1,0 +1,48 @@
+name: Subscribe
+
+on:
+  repository_dispatch:
+    types: [subscribe]
+
+jobs:
+  add-subscriber:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Add email to subscribers
+        run: |
+          EMAIL="${{ github.event.client_payload.email }}"
+          
+          if [ -z "$EMAIL" ]; then
+            echo "No email provided"
+            exit 1
+          fi
+
+          # Check if already subscribed
+          if python3 -c "
+import json, sys
+with open('subscribers.json') as f:
+    subs = json.load(f)
+emails = [s['email'] for s in subs]
+if '$EMAIL' in emails:
+    print('already_subscribed')
+    sys.exit(0)
+subs.append({'email': '$EMAIL', 'subscribed_at': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'})
+with open('subscribers.json', 'w') as f:
+    json.dump(subs, f, indent=2)
+print('added')
+"; then
+            echo "Email processed"
+          fi
+
+      - name: Commit changes
+        run: |
+          git config user.name "newsletter-bot"
+          git config user.email "bot@newsletter-pocus"
+          git add subscribers.json
+          git diff --staged --quiet || git commit -m "Subscribe: ${{ github.event.client_payload.email }}"
+          git push
