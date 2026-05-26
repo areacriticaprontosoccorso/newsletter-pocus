@@ -83,38 +83,28 @@
       <div class="panel active" id="panel-subscribe">
         <p class="panel-title">Iscriviti alla newsletter</p>
         <p class="panel-sub">Aggiornamenti su corsi, casi clinici e novità sulla Point of Care Ultrasound.</p>
-        <form id="subscribe-form">
-          <input type="hidden" name="_subject" value="✦ Nuova iscrizione Newsletter POCUS" />
-          <input type="hidden" name="tipo" value="iscrizione" />
-          <div class="input-row">
-            <input type="email" name="email" placeholder="la-tua@email.com" required autocomplete="email" aria-label="Indirizzo email" />
-            <button type="submit" class="submit-btn" id="subscribe-btn">Iscriviti →</button>
-          </div>
-        </form>
+        <div class="input-row">
+          <input type="email" id="sub-email" placeholder="la-tua@email.com" autocomplete="email" aria-label="Indirizzo email" />
+          <button class="submit-btn" id="subscribe-btn" onclick="handleSubscribe()">Iscriviti →</button>
+        </div>
         <div class="feedback success" id="sub-success">✓ Iscrizione completata! Benvenuto nella newsletter POCUS.</div>
         <div class="feedback error" id="sub-error">Qualcosa è andato storto. Riprova tra poco.</div>
         <p class="note">Nessuno spam. Disiscrizione in qualsiasi momento.</p>
       </div>
       <div class="panel" id="panel-unsubscribe">
         <p class="panel-title">Rimuovi la tua email</p>
-        <p class="panel-sub">Inserisci la tua email per cancellarti dalla newsletter.</p>
-        <form id="unsubscribe-form">
-          <input type="hidden" name="_subject" value="← Disiscrizione Newsletter POCUS" />
-          <input type="hidden" name="tipo" value="disiscrizione" />
-          <div class="input-row">
-            <input type="email" name="email" placeholder="la-tua@email.com" required autocomplete="email" aria-label="Indirizzo email" />
-            <button type="submit" class="submit-btn" id="unsubscribe-btn">Rimuovimi</button>
-          </div>
-        </form>
-        <div class="feedback neutral" id="unsub-success">✓ Richiesta ricevuta. Sarai rimosso entro 24 ore.</div>
+        <p class="panel-sub">Inserisci la tua email per cancellarti automaticamente dalla newsletter.</p>
+        <div class="input-row">
+          <input type="email" id="unsub-email" placeholder="la-tua@email.com" autocomplete="email" aria-label="Indirizzo email" />
+          <button class="submit-btn" id="unsubscribe-btn" onclick="handleUnsubscribe()">Rimuovimi</button>
+        </div>
+        <div class="feedback neutral" id="unsub-success">✓ Rimosso con successo dalla newsletter.</div>
         <div class="feedback error" id="unsub-error">Qualcosa è andato storto. Riprova tra poco.</div>
-        <p class="note">La rimozione verrà elaborata dal team entro 24 ore.</p>
+        <p class="note">La rimozione è immediata e automatica.</p>
       </div>
     </div>
   </main>
   <script>
-    const FORMSPREE = 'https://formspree.io/f/xbdbzpkj';
-
     function switchTab(tab) {
       document.querySelectorAll('.tab-btn').forEach((b, i) => {
         b.classList.toggle('active', (i === 0 && tab === 'subscribe') || (i === 1 && tab === 'unsubscribe'));
@@ -123,34 +113,39 @@
       document.getElementById('panel-unsubscribe').classList.toggle('active', tab === 'unsubscribe');
     }
 
-    async function handleForm(formId, btnId, successId, errorId) {
-      const form = document.getElementById(formId);
+    async function callFunction(endpoint, email, btnId, successId, errorId, rowSelector) {
       const btn = document.getElementById(btnId);
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const orig = btn.textContent;
-        btn.textContent = '…'; btn.disabled = true;
-        document.getElementById(successId).style.display = 'none';
-        document.getElementById(errorId).style.display = 'none';
-        try {
-          const res = await fetch(FORMSPREE, {
-            method: 'POST',
-            body: new FormData(form),
-            headers: { 'Accept': 'application/json' }
-          });
-          if (res.ok) {
-            form.style.display = 'none';
-            document.getElementById(successId).style.display = 'block';
-          } else { throw new Error(); }
-        } catch {
-          document.getElementById(errorId).style.display = 'block';
-          btn.textContent = orig; btn.disabled = false;
-        }
-      });
+      const orig = btn.textContent;
+      btn.textContent = '…'; btn.disabled = true;
+      document.getElementById(successId).style.display = 'none';
+      document.getElementById(errorId).style.display = 'none';
+      try {
+        const res = await fetch('/.netlify/functions/' + endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        if (res.ok) {
+          document.querySelector(rowSelector).style.display = 'none';
+          document.getElementById(successId).style.display = 'block';
+        } else { throw new Error(); }
+      } catch {
+        document.getElementById(errorId).style.display = 'block';
+        btn.textContent = orig; btn.disabled = false;
+      }
     }
 
-    handleForm('subscribe-form','subscribe-btn','sub-success','sub-error');
-    handleForm('unsubscribe-form','unsubscribe-btn','unsub-success','unsub-error');
+    function handleSubscribe() {
+      const email = document.getElementById('sub-email').value.trim();
+      if (!email) return;
+      callFunction('subscribe', email, 'subscribe-btn', 'sub-success', 'sub-error', '#panel-subscribe .input-row');
+    }
+
+    function handleUnsubscribe() {
+      const email = document.getElementById('unsub-email').value.trim();
+      if (!email) return;
+      callFunction('unsubscribe', email, 'unsubscribe-btn', 'unsub-success', 'unsub-error', '#panel-unsubscribe .input-row');
+    }
   </script>
 </body>
 </html>
