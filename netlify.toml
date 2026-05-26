@@ -1,0 +1,13 @@
+[build]
+  functions = "netlify/functions"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+
+[build.environment]
+  NETLIFY_BUILD_SKIP = "true"
+
+[context.production]
+  ignore = "git diff --quiet HEAD^ HEAD -- . ':(exclude)subscribers.json'"
