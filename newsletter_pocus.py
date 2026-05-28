@@ -461,7 +461,8 @@ def invia_email(oggetto, html):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = oggetto
     msg["From"]    = f"POCUS Weekly Digest <{cfg.GMAIL_USER}>"
-    msg["To"]      = ", ".join(DESTINATARI)
+    msg["To"]      = cfg.GMAIL_USER
+    msg["Bcc"]     = ", ".join(DESTINATARI)
 
     msg.attach(MIMEText(f"POCUS Weekly Digest — {oggetto}\nApri in HTML.", "plain", "utf-8"))
     msg.attach(MIMEText(html, "html", "utf-8"))
