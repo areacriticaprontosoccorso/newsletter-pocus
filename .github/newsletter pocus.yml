@@ -1,0 +1,41 @@
+name: POCUS Weekly Digest
+
+on:
+  schedule:
+    - cron: "0 10 * * 5"  # Ogni venerdì alle 10:00 UTC
+
+  workflow_dispatch:  # Lancio manuale senza restrizioni
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  GMAIL_TOKEN_POCUS: ${{ secrets.GMAIL_TOKEN_POCUS }}
+
+jobs:
+  send-newsletter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install google-auth google-auth-oauthlib google-api-python-client
+
+      - name: Run newsletter
+        run: python newsletter_pocus.py
+
+      - name: Upload log as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newsletter-log-${{ github.run_id }}
+          path: "*.log"
+          retention-days: 30
