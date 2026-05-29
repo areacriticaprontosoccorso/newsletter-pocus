@@ -9,6 +9,7 @@ on:
 env:
   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
   GMAIL_TOKEN_POCUS: ${{ secrets.GMAIL_TOKEN_POCUS }}
+  GMAIL_USER_POCUS: ${{ secrets.GMAIL_USER_POCUS }}
 
 jobs:
   send-newsletter:
