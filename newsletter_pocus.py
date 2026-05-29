@@ -439,42 +439,31 @@ def build_html(articoli):
 
 
 def invia_email(oggetto, html):
-    from google.oauth2.credentials import Credentials
-    from googleapiclient.discovery import build as gmail_build
+    import smtplib
 
-    token_json = os.environ.get("GMAIL_TOKEN_POCUS", "")
-    if not token_json:
-        log.error("GMAIL_TOKEN_POCUS non trovato nei secrets")
+    gmail_user = cfg.GMAIL_USER
+    gmail_app_password = os.environ.get("GMAIL_APP_PASSWORD", "")
+    if not gmail_app_password:
+        log.error("GMAIL_APP_PASSWORD non trovato nei secrets")
         return False
-
-    token_data = json.loads(token_json)
-
-    creds = Credentials(
-        token=token_data['token'],
-        refresh_token=token_data['refresh_token'],
-        token_uri=token_data['token_uri'],
-        client_id=token_data['client_id'],
-        client_secret=token_data['client_secret'],
-        scopes=token_data['scopes'],
-    )
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = oggetto
-    msg["From"]    = f"POCUS Weekly Digest <{cfg.GMAIL_USER}>"
-    msg["To"]      = cfg.GMAIL_USER
+    msg["From"]    = f"POCUS Weekly Digest <{gmail_user}>"
+    msg["To"]      = gmail_user
     msg["Bcc"]     = ", ".join(DESTINATARI)
 
     msg.attach(MIMEText(f"POCUS Weekly Digest — {oggetto}\nApri in HTML.", "plain", "utf-8"))
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     try:
-        service = gmail_build('gmail', 'v1', credentials=creds)
-        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        service.users().messages().send(userId='me', body={'raw': raw}).execute()
-        log.info(f"Email inviata a {len(DESTINATARI)} destinatari")
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(gmail_user, gmail_app_password)
+            server.send_message(msg)
+        log.info(f"Email inviata via SMTP a {len(DESTINATARI)} destinatari")
         return True
     except Exception as e:
-        log.error(f"Invio fallito: {e}")
+        log.error(f"Invio SMTP fallito: {e}")
         return False
 
 
