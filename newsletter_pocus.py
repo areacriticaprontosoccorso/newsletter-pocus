@@ -71,6 +71,7 @@ RIVISTE_POCUS = [
 
 TUTTE_RIVISTE = RIVISTE_POCUS + cfg.RIVISTE
 ARTICOLI_FINALI = 5
+NEWSLETTER_PAGE_URL = "https://newsletter-pocus.netlify.app"
 COLOR_ACCENT = "#0a6e8a"
 
 logging.basicConfig(
@@ -429,7 +430,8 @@ def build_html(articoli):
           <p style="font-family:monospace;font-size:10px;color:#556;margin:0;line-height:1.8;">
             Generato con Claude Opus 4.5 (Anthropic) &middot; Fonte dati: PubMed RSS feeds<br/>
             Le sintesi sono prodotte da AI e devono essere verificate prima dell'applicazione clinica.<br/>
-            Per cancellarsi rispondere con oggetto UNSUBSCRIBE.
+            <a href="https://newsletter-pocus.netlify.app" style="color:#0a6e8a;">Condividi: invita un collega</a> · <a href="https://newsletter-pocus.netlify.app#unsub" style="color:#999;">Disiscriviti</a>
+
           </p>
         </td>
       </tr>
