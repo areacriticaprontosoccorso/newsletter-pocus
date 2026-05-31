@@ -10,4 +10,5 @@
   NETLIFY_BUILD_SKIP = "true"
 
 [context.production]
-  ignore = "git diff --quiet HEAD^ HEAD -- . ':(exclude)subscribers.json'"
+  ignore = "git diff --quiet HEAD^ HEAD -- ':!subscribers.json'"
+
