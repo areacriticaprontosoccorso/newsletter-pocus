@@ -1,9 +1,6 @@
 name: POCUS Weekly Digest
 
 on:
-  schedule:
-    - cron: "0 10 * * 5"  # Ogni venerdì alle 10:00 UTC
-
   workflow_dispatch:  # Lancio manuale senza restrizioni
 
 env:
