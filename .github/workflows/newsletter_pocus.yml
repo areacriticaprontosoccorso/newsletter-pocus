@@ -27,7 +27,7 @@ jobs:
           pip install --upgrade pip
 
       - name: Run newsletter
-        run: python newsletter_pocus.py
+        run: echo "Test cron-job.org - invio disattivato"
 
       - name: Upload log as artifact
         if: always()
