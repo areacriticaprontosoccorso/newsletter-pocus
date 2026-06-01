@@ -1,12 +1,17 @@
 name: POCUS Weekly Digest
 
 on:
+  schedule:
+    - cron: "0 10 * * 5"  # Ogni venerdì alle 10:00 UTC
+
   workflow_dispatch:  # Lancio manuale senza restrizioni
 
 env:
   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
   GMAIL_USER_POCUS: ${{ secrets.GMAIL_USER_POCUS }}
   GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
 jobs:
   send-newsletter:
