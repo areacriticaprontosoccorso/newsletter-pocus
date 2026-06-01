@@ -71,7 +71,7 @@ RIVISTE_POCUS = [
 
 TUTTE_RIVISTE = RIVISTE_POCUS + cfg.RIVISTE
 ARTICOLI_FINALI = 5
-NEWSLETTER_PAGE_URL = "https://newsletter-pocus.netlify.app"
+NEWSLETTER_PAGE_URL = "https://areacriticaprontosoccorso.github.io/newsletter-pocus/"
 COLOR_ACCENT = "#0a6e8a"
 
 logging.basicConfig(
@@ -430,7 +430,7 @@ def build_html(articoli):
           <p style="font-family:monospace;font-size:10px;color:#556;margin:0;line-height:1.8;">
             Generato con Claude Opus 4.5 (Anthropic) &middot; Fonte dati: PubMed RSS feeds<br/>
             Le sintesi sono prodotte da AI e devono essere verificate prima dell'applicazione clinica.<br/>
-            <a href="https://newsletter-pocus.netlify.app" style="color:#0a6e8a;">Condividi: invita un collega</a> · <a href="https://newsletter-pocus.netlify.app#unsub" style="color:#999;">Disiscriviti</a>
+            <a href="https://areacriticaprontosoccorso.github.io/newsletter-pocus/" style="color:#0a6e8a;">Condividi: invita un collega</a> · <a href="https://areacriticaprontosoccorso.github.io/newsletter-pocus/#unsub" style="color:#999;">Disiscriviti</a>
 
           </p>
         </td>
@@ -469,6 +469,114 @@ def invia_email(oggetto, html):
         return False
 
 
+# ─── Telegram ────────────────────────────────────────────────
+
+def telegram_send_message(bot_token, chat_id, text, parse_mode="HTML"):
+    """Invia un singolo messaggio Telegram (max 4096 caratteri)."""
+    payload = json.dumps({
+        "chat_id":    chat_id,
+        "text":       text,
+        "parse_mode": parse_mode,
+        "disable_web_page_preview": False,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{bot_token}/sendMessage",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            resp = json.loads(r.read().decode("utf-8"))
+        if not resp.get("ok"):
+            log.error(f"Telegram API errore: {resp}")
+            return False
+        return True
+    except Exception as e:
+        log.error(f"Telegram invio fallito: {e}")
+        return False
+
+
+def build_telegram_header(articoli):
+    """Crea il messaggio di intestazione per Telegram."""
+    wl = numero_settimana()
+    return (
+        f"📡 <b>POCUS Weekly Digest</b>\n"
+        f"Settimana {wl['settimana']} · {wl['giorno']} {wl['mese']} {wl['anno']}\n"
+        f"<i>{cfg.NOME_SERVIZIO}</i>\n\n"
+        f"🔬 {len(articoli)} articoli selezionati questa settimana\n"
+        f"{'━' * 30}"
+    )
+
+
+def build_telegram_articolo(i, art):
+    """Crea il messaggio Telegram per un singolo articolo."""
+    parti = []
+    parti.append(f"<b>{i}. {art['titolo']}</b>")
+    parti.append(f"<i>{art['rivista']} · {art['data']}</i>")
+    if art.get("autori"):
+        parti.append(f"👤 {art['autori']}")
+    parti.append("")
+    if art.get("sintesi_it"):
+        parti.append(f"{art['sintesi_it']}")
+    if art.get("rilevanza"):
+        parti.append(f"\n🎯 <b>Rilevanza:</b> {art['rilevanza']}")
+    parti.append("")
+    link_pm = f'<a href="{art["url"]}">PubMed {art["pmid"]}</a>'
+    if art.get("doi"):
+        link_doi = f' · <a href="https://doi.org/{art["doi"]}">DOI</a>'
+    else:
+        link_doi = ""
+    parti.append(f"🔗 {link_pm}{link_doi}")
+    return "\n".join(parti)
+
+
+def build_telegram_footer():
+    """Crea il messaggio di chiusura per Telegram."""
+    return (
+        f"{'━' * 30}\n"
+        f"📬 <a href=\"{NEWSLETTER_PAGE_URL}\">Iscriviti alla newsletter via email</a>\n"
+        f"🤖 Sintesi generate con Claude (Anthropic) · Fonte: PubMed\n"
+        f"⚠️ Le sintesi AI devono essere verificate prima dell'uso clinico."
+    )
+
+
+def invia_telegram(articoli):
+    """Invia la newsletter completa su Telegram come serie di messaggi."""
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat_id   = os.environ.get("TELEGRAM_CHAT_ID", "")
+
+    if not bot_token or not chat_id:
+        log.warning("TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID mancanti — salto invio Telegram")
+        return False
+
+    successi = 0
+
+    # 1. Intestazione
+    header = build_telegram_header(articoli)
+    if telegram_send_message(bot_token, chat_id, header):
+        successi += 1
+    time.sleep(1)
+
+    # 2. Un messaggio per articolo
+    for i, art in enumerate(articoli, 1):
+        msg = build_telegram_articolo(i, art)
+        if len(msg) > 4096:
+            msg = msg[:4090] + "\n…"
+        if telegram_send_message(bot_token, chat_id, msg):
+            successi += 1
+        time.sleep(1)
+
+    # 3. Footer
+    footer = build_telegram_footer()
+    if telegram_send_message(bot_token, chat_id, footer):
+        successi += 1
+
+    totale = len(articoli) + 2
+    log.info(f"Telegram: inviati {successi}/{totale} messaggi al canale {chat_id}")
+    return successi == totale
+
+
 def main():
     cfg.valida_config()
     wl = numero_settimana()
@@ -501,9 +609,20 @@ def main():
     html = build_html(selezionati)
 
     oggetto = f"POCUS Weekly Digest — Settimana {wl['settimana']}/{wl['anno']}"
-    ok = invia_email(oggetto, html)
-    log.info("=== OK ===" if ok else "=== FALLITO ===")
-    return ok
+    ok_email = invia_email(oggetto, html)
+    ok_telegram = invia_telegram(selezionati)
+
+    if ok_email:
+        log.info("=== Email: OK ===")
+    else:
+        log.error("=== Email: FALLITO ===")
+
+    if ok_telegram:
+        log.info("=== Telegram: OK ===")
+    else:
+        log.warning("=== Telegram: FALLITO o non configurato ===")
+
+    return ok_email
 
 
 if __name__ == "__main__":
