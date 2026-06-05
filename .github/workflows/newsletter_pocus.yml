@@ -1,8 +1,7 @@
 name: POCUS Weekly Digest
 
 on:
-  schedule:
-  workflow_dispatch:  # Lancio manuale senza restrizioni
+  workflow_dispatch:  # Lancio manuale e da cron-job.org
 
 env:
   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
