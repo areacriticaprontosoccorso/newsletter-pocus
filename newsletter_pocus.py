@@ -428,7 +428,7 @@ def build_html(articoli):
       <tr>
         <td style="background:{cfg.COLOR_DARK};padding:22px 32px;">
           <p style="font-family:monospace;font-size:10px;color:#556;margin:0;line-height:1.8;">
-            Generato con Claude Opus 4.5 (Anthropic) &middot; Fonte dati: PubMed RSS feeds<br/>
+            Generato con Claude Opus 4.5 (Anthropic)a cura di Francesco Panero &middot; Fonte dati: PubMed RSS feeds<br/>
             Le sintesi sono prodotte da AI e devono essere verificate prima dell'applicazione clinica.<br/>
             <a href="https://areacriticaprontosoccorso.github.io/newsletter-pocus/" style="color:#0a6e8a;">Condividi: invita un collega</a> · <a href="https://areacriticaprontosoccorso.github.io/newsletter-pocus/#unsub" style="color:#999;">Disiscriviti</a>
 
