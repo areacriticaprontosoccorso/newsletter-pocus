@@ -3,6 +3,12 @@ name: POCUS Weekly Digest
 on:
   workflow_dispatch:  # Lancio manuale e da cron-job.org
 
+# Evita doppi invii se cron-job.org spara due trigger ravvicinati:
+# il secondo run attende (non cancella) ma non gira in parallelo.
+concurrency:
+  group: newsletter-pocus-invio
+  cancel-in-progress: false
+
 env:
   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
   GMAIL_USER_POCUS: ${{ secrets.GMAIL_USER_POCUS }}
@@ -24,9 +30,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
+      # Nessuna dipendenza esterna: lo script usa solo la libreria standard
+      # (invio via SMTP con smtplib).
 
       - name: Run newsletter
         run: python newsletter_pocus.py
