@@ -2,6 +2,11 @@ name: POCUS Weekly Digest
 
 on:
   workflow_dispatch:  # Lancio manuale e da cron-job.org
+    inputs:
+      dry_run:
+        description: "Prova a vuoto: esegue tutto ma NON invia email ne' Telegram"
+        type: boolean
+        default: false
 
 # Evita doppi invii se cron-job.org spara due trigger ravvicinati:
 # il secondo run attende (non cancella) ma non gira in parallelo.
@@ -15,6 +20,8 @@ env:
   GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
   TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
   TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  # Vuoto quando il workflow parte da cron-job.org: l'invio resta il default.
+  DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
 
 jobs:
   send-newsletter:
@@ -36,10 +43,15 @@ jobs:
       - name: Run newsletter
         run: python newsletter_pocus.py
 
-      - name: Upload log as artifact
+      # Caricato anche quando lo step precedente fallisce: il log e' proprio
+      # cio' che serve quando qualcosa e' andato storto.
+      - name: Carica anteprima e log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: newsletter-log-${{ github.run_id }}
-          path: "*.log"
+          name: digest-pocus-${{ github.run_number }}
+          path: |
+            anteprima_digest.html
+            newsletter_pocus.log
+          if-no-files-found: warn
           retention-days: 30
