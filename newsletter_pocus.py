@@ -471,8 +471,8 @@ def componi_digest(graduatoria):
         esce = next((a for a in reversed(scelti) if not prioritario(a)), None)
         if entra is None or esce is None:
             log.warning(
-                f"Quota riviste urgenza/generaliste non raggiunta: mancano "
-                f"{mancanti} - nessuno scambio possibile in graduatoria"
+                f"Quota nucleo tematico non raggiunta: mancano {mancanti} "
+                "- nessuno scambio possibile in graduatoria"
             )
             break
         log.info(
@@ -486,7 +486,9 @@ def componi_digest(graduatoria):
     # si ripristina l'ordine di rilevanza deciso dal modello
     scelti.sort(key=lambda a: graduatoria.index(a))
     n_prior = sum(1 for a in scelti if prioritario(a))
-    log.info(f"Composizione: {n_prior} da riviste urgenza/generaliste su {len(scelti)}")
+    etichette = "/".join(sorted(cfg.ETICHETTA_GRUPPO.get(g, g)
+                                for g in cfg.GRUPPI_PRIORITARI))
+    log.info(f"Composizione: {n_prior} da riviste {etichette} su {len(scelti)}")
     return scelti
 
 
