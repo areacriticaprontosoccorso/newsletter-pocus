@@ -23,7 +23,96 @@ GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
 DRY_RUN      = os.environ.get("DRY_RUN", "").strip().lower() in ("1", "true", "yes", "si")
 DRY_RUN_FILE = "anteprima_digest.html"
 
+# Modalità solo Facebook: esegue la pipeline e pubblica i post programmati, ma
+# NON invia né email né Telegram. Ha effetto solo se DRY_RUN non è attivo.
+SOLO_FACEBOOK = os.environ.get("SOLO_FACEBOOK", "").strip().lower() in ("1", "true", "yes", "si")
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# IMMAGINI DEGLI ARTICOLI
+# ═══════════════════════════════════════════════════════════════════════════════
+# Una scheda PNG per articolo, allegata all'email e utile per la condivisione.
+# Gli abstract in inglese sono esclusi: senza, la scheda resta di altezza leggibile.
+IMMAGINI_ABILITATE = True
+IMG_DIR        = "immagini"
+IMG_LARGHEZZA  = 720   # px CSS della scheda
+IMG_SCALA      = 2     # device scale factor: 2 = testo nitido su schermi retina
+IMG_TIMEOUT_MS = 20000
+IMG_MAX_MB     = 20    # oltre questa soglia gli allegati vengono omessi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PUBBLICAZIONE SU PAGINA FACEBOOK
+# ═══════════════════════════════════════════════════════════════════════════════
+# Le schede PNG vengono pubblicate come UNICO post multi-foto sulla Pagina.
+# NB: nei GRUPPI non è più possibile pubblicare via API — Meta ha rimosso le
+# Groups API il 22/04/2024. Dalla Pagina il post si condivide nel gruppo a mano.
+# Permessi necessari sul token di Pagina: pages_manage_posts, pages_read_engagement.
+FB_ABILITATO   = True
+FB_API_VERSION = "v21.0"
+FB_PAGE_ID     = os.environ.get("FB_PAGE_ID", "")
+FB_PAGE_TOKEN  = os.environ.get("FB_PAGE_TOKEN", "")
+FB_TIMEOUT     = 60
+
+# Pubblicazione distribuita: un post al giorno nei giorni feriali, uno per articolo.
+# La corsa del lunedì crea tutti e cinque i post già programmati; a pubblicarli
+# è poi Facebook. Vincolo API: l'orario deve essere almeno 10 minuti nel futuro.
+FB_UN_POST_AL_GIORNO = True
+FB_FUSO              = "Europe/Rome"
+FB_ORA               = 9    # ora di pubblicazione (0-23), fuso di Roma.
+                            # EM pubblica alle 16:00 sulla STESSA Pagina: orari
+                            # distinti per non sovrapporre i due digest.
+FB_MINUTO            = 0
+FB_GIORNI_FERIALI    = {0, 1, 2, 3, 4}   # lunedì=0 ... venerdì=4
+
+# Didascalia del singolo post giornaliero.
+POST_GIORNALIERO = """POCUS Weekly Digest — Settimana {settimana}/{anno} · articolo {i} di {tot}
+
+{titolo}
+{rivista}, {data}{badge}
+
+{sintesi}
+
+{rilevanza}{limite}
+
+Fonte: pubmed.ncbi.nlm.nih.gov/{pmid}
+
+Sintesi generata con supporto di intelligenza artificiale: verificare prima
+dell'applicazione clinica.
+
+#POCUS #EcografiaClinica #MedicinaDUrgenza #ProntoSoccorso #EBM"""
+
+# Intestazione del post. {settimana}, {anno} e {n} vengono sostituiti.
+FB_INTESTAZIONE = """POCUS Weekly Digest — Settimana {settimana}/{anno}
+
+I {n} articoli più rilevanti per l'ecografia clinica in Pronto Soccorso e Area
+Critica, selezionati dalla letteratura internazionale della settimana."""
+
+# Testo da incollare nel gruppo Facebook il lunedì: nel gruppo non si può
+# pubblicare via API (Meta ha rimosso le Groups API il 22/04/2024), quindi il
+# workflow prepara il messaggio con il link al primo post e resta il copia-incolla.
+POST_GRUPPO = """{nome} — settimana {settimana}/{anno}
+
+Ogni settimana leggiamo le principali riviste internazionali di ecografia clinica,
+medicina d'urgenza e area critica e selezioniamo i cinque lavori che possono
+davvero cambiare come si usa la sonda al letto del paziente. Per ciascuno: sintesi in italiano con i
+numeri chiave, ricaduta pratica e limite metodologico.
+
+Questa settimana si parte con:
+{primo_titolo}
+
+{link}
+
+Un articolo al giorno fino a venerdì sulla pagina {pagina} — seguitela per
+riceverli tutti."""
+
+# Nome della Pagina come compare nel testo per il gruppo.
+FB_NOME_PAGINA = "Emergency Ultrasound School in Turin"
+FB_FILE_GRUPPO = "post_gruppo.txt"
+
+FB_CHIUSURA = """Le sintesi sono generate con supporto di intelligenza artificiale
+e vanno verificate prima dell'applicazione clinica.
+
+#POCUS #EcografiaClinica #MedicinaDUrgenza #ProntoSoccorso #EBM"""
 NCBI_TOOL          = "pocus_weekly_digest_torino"  # User-Agent per i feed PubMed
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -449,7 +538,7 @@ def valida_config():
     if not ANTHROPIC_API_KEY: mancanti.append("ANTHROPIC_API_KEY")
     # In prova a vuoto non si invia nulla: le credenziali SMTP non servono,
     # così la prova gira anche in locale con la sola chiave Anthropic.
-    if not DRY_RUN:
+    if not DRY_RUN and not SOLO_FACEBOOK:
         if not GMAIL_USER:         mancanti.append("GMAIL_USER_POCUS")
         if not GMAIL_APP_PASSWORD: mancanti.append("GMAIL_APP_PASSWORD")
     if mancanti:

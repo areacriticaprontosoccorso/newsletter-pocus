@@ -12,12 +12,18 @@ import html
 import logging
 import base64
 import os
+import uuid
+import pathlib
+import tempfile
+import shutil
 import urllib.request
 import urllib.error
 import urllib.parse
 import xml.etree.ElementTree as ET
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta, timezone, time as dt_time
 
 import config as cfg
@@ -722,6 +728,317 @@ def sintetizza_articoli(articoli):
     return articoli
 
 
+def build_html_scheda(a, indice, wl):
+    """Pagina HTML autonoma con un singolo articolo, pensata per lo screenshot.
+    Esclude l'abstract originale: la scheda resta di altezza leggibile."""
+    meta_tipo = cfg.TIPI_ARTICOLO.get(a.get("tipo") or "")
+    badge_html = (
+        f'<span style="font-family:monospace;font-size:11px;font-weight:700;'
+        f'letter-spacing:1.5px;text-transform:uppercase;color:#ffffff;'
+        f'background:{meta_tipo["colore"]};padding:4px 9px;border-radius:3px;'
+        f'margin-left:12px;">{esc(meta_tipo["label"])}</span>'
+    ) if meta_tipo else ""
+
+    limite_txt = (a.get("limite") or "").strip()
+    limite_html = "" if (not limite_txt or limite_txt == cfg.LIMITE_NON_DESUMIBILE) else f"""
+        <div style="font-family:Georgia,serif;font-size:14px;color:#6f6152;line-height:1.55;
+                    margin:0 0 18px;padding:12px 18px;background:#fbf9f4;
+                    border-left:3px solid #c9bda6;">
+          <span style="font-family:monospace;font-size:10px;letter-spacing:1.5px;
+                       text-transform:uppercase;color:#a08c6b;">Limite</span><br/>
+          {esc(limite_txt)}
+        </div>"""
+
+    rilevanza_html = (
+        f'<br/><br/><strong style="color:{cfg.COLOR_ACCENT};">{esc(a["rilevanza"])}</strong>'
+        if a.get("rilevanza") else ""
+    )
+    sintesi_html = f"""
+        <div style="background:#f7f4ef;border-left:3px solid {cfg.COLOR_ACCENT};
+                    padding:16px 20px;font-family:Georgia,serif;font-size:15.5px;
+                    color:#2a2a2a;line-height:1.65;margin-bottom:18px;">
+          {esc(a['sintesi_it'])}{rilevanza_html}
+        </div>""" if a.get("sintesi_it") else ""
+
+    doi_txt = f' &nbsp;&middot;&nbsp; DOI {esc(a["doi"])}' if a.get("doi") else ""
+
+    return f"""<!DOCTYPE html>
+<html lang="it"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#ffffff;width:{cfg.IMG_LARGHEZZA}px;">
+  <div style="background:{cfg.COLOR_ACCENT};height:5px;"></div>
+  <div style="background:{cfg.COLOR_DARK};padding:16px 34px;">
+    <div style="font-family:monospace;font-size:10px;color:#8a8a8a;letter-spacing:3px;
+                text-transform:uppercase;">{esc(cfg.NOME_SERVIZIO)}</div>
+    <div style="font-family:monospace;font-size:11px;color:#cfcfcf;letter-spacing:1px;
+                margin-top:6px;">
+      {esc(cfg.NOME_NEWSLETTER)} &middot; Settimana {esc(wl['settimana'])}/{esc(wl['anno'])}
+    </div>
+  </div>
+  <div style="padding:26px 34px 30px;">
+    <div style="margin-bottom:14px;">
+      <span style="font-family:monospace;font-size:15px;color:{cfg.COLOR_ACCENT};
+                   font-weight:700;">{str(indice).zfill(2)}</span>
+      <span style="font-family:monospace;font-size:12px;color:#aaa;margin-left:10px;">{esc(a['rivista'])} &middot; {esc(a['data'])}</span>{badge_html}
+    </div>
+    <div style="font-family:Georgia,serif;font-size:23px;font-weight:700;color:#1a1a1a;
+                line-height:1.32;margin-bottom:8px;">{esc(a['titolo'])}</div>
+    <div style="font-family:monospace;font-size:12.5px;color:#999;font-style:italic;
+                margin-bottom:20px;">{esc(a['autori'])}</div>
+    {sintesi_html}
+    {limite_html}
+    <div style="font-family:monospace;font-size:11px;color:#0a4d68;border-top:1px solid #e8e3db;
+                padding-top:12px;">PubMed {esc(a['pmid'])}{doi_txt}</div>
+  </div>
+</body></html>"""
+
+
+def genera_immagini(articoli):
+    """Una scheda PNG per articolo, con Chromium headless via Playwright.
+    Non e' mai bloccante: se qualcosa fallisce si prosegue senza immagini."""
+    if not cfg.IMMAGINI_ABILITATE:
+        return []
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        log.error("Playwright non installato: nessuna immagine generata")
+        return []
+
+    wl = numero_settimana()
+    os.makedirs(cfg.IMG_DIR, exist_ok=True)
+    tmp = tempfile.mkdtemp()
+    percorsi = []
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(args=["--no-sandbox"])
+            # Viewport basso di partenza: lo screenshot full_page prende il
+            # massimo fra contenuto e viewport, quindi un viewport alto
+            # aggiungerebbe spazio bianco in fondo a ogni scheda.
+            pagina = browser.new_page(
+                viewport={"width": cfg.IMG_LARGHEZZA, "height": 200},
+                device_scale_factor=cfg.IMG_SCALA,
+            )
+            for i, a in enumerate(articoli, 1):
+                f = os.path.join(tmp, f"scheda{i}.html")
+                with open(f, "w", encoding="utf-8") as fh:
+                    fh.write(build_html_scheda(a, i, wl))
+                pagina.goto(pathlib.Path(f).as_uri(),
+                            wait_until="networkidle", timeout=cfg.IMG_TIMEOUT_MS)
+                # Si misura l'altezza reale e vi si adatta il viewport: la scheda
+                # risulta ritagliata esattamente sul contenuto.
+                altezza = max(int(pagina.evaluate(
+                    "Math.ceil(document.documentElement.scrollHeight)"
+                )), 200)
+                pagina.set_viewport_size(
+                    {"width": cfg.IMG_LARGHEZZA, "height": altezza}
+                )
+                nome = f"digest-s{str(wl['settimana']).zfill(2)}-{str(i).zfill(2)}.png"
+                dest = os.path.join(cfg.IMG_DIR, nome)
+                pagina.screenshot(path=dest, full_page=True)
+                percorsi.append(dest)
+                kb = os.path.getsize(dest) // 1024
+                log.info(
+                    f"    immagine {i}/{len(articoli)}: {nome} "
+                    f"({cfg.IMG_LARGHEZZA}x{altezza} CSS, {kb} KB)"
+                )
+            browser.close()
+    except Exception as e:
+        log.error(f"Generazione immagini interrotta: {e}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    tot_mb = sum(os.path.getsize(p) for p in percorsi) / 1e6
+    log.info(f"Immagini generate: {len(percorsi)}/{len(articoli)} ({tot_mb:.1f} MB)")
+    if tot_mb > cfg.IMG_MAX_MB:
+        log.warning(f"Allegati oltre {cfg.IMG_MAX_MB} MB: non verranno allegati")
+        return []
+    return percorsi
+
+
+def _multipart(campi, file_campo=None, file_path=None):
+    """Costruisce un corpo multipart/form-data senza dipendenze esterne."""
+    conf = uuid.uuid4().hex
+    parti = []
+    for k, v in campi.items():
+        parti.append(
+            f'--{conf}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'
+            .encode("utf-8")
+        )
+    if file_campo and file_path:
+        with open(file_path, "rb") as f:
+            dati = f.read()
+        nome = os.path.basename(file_path)
+        parti.append(
+            f'--{conf}\r\nContent-Disposition: form-data; name="{file_campo}"; '
+            f'filename="{nome}"\r\nContent-Type: image/png\r\n\r\n'.encode("utf-8")
+        )
+        parti.append(dati)
+        parti.append(b"\r\n")
+    parti.append(f"--{conf}--\r\n".encode("utf-8"))
+    return b"".join(parti), f"multipart/form-data; boundary={conf}"
+
+
+def _fb_post(percorso_api, campi, file_path=None):
+    url = f"https://graph.facebook.com/{cfg.FB_API_VERSION}/{percorso_api}"
+    campi = dict(campi, access_token=cfg.FB_PAGE_TOKEN)
+    if file_path:
+        corpo, ctype = _multipart(campi, "source", file_path)
+    else:
+        corpo = urllib.parse.urlencode(campi).encode("utf-8")
+        ctype = "application/x-www-form-urlencoded"
+    req = urllib.request.Request(url, data=corpo,
+                                 headers={"Content-Type": ctype}, method="POST")
+    with urllib.request.urlopen(req, timeout=cfg.FB_TIMEOUT) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def testo_post_facebook(articoli, wl):
+    """Didascalia del post: intestazione, elenco numerato, chiusura."""
+    righe = [cfg.FB_INTESTAZIONE.format(
+        settimana=wl["settimana"], anno=wl["anno"], n=len(articoli))]
+    for i, a in enumerate(articoli, 1):
+        meta = cfg.TIPI_ARTICOLO.get(a.get("tipo") or "")
+        etichetta = f" [{meta['label'].upper()}]" if meta else ""
+        righe.append(
+            f"{str(i).zfill(2)}{etichetta} {a['titolo']}\n"
+            f"{a['rivista']} — pubmed.ncbi.nlm.nih.gov/{a['pmid']}"
+        )
+    righe.append(cfg.FB_CHIUSURA)
+    return "\n\n".join(righe)
+
+
+def prossimi_slot_feriali(n):
+    """Le prossime n date feriali all'ora configurata, fuso di Roma.
+    Salta gli slot gia' passati o troppo vicini: l'API rifiuta orari a meno di
+    10 minuti da adesso."""
+    tz = ZoneInfo(cfg.FB_FUSO)
+    adesso = datetime.now(tz)
+    slot, giorno = [], adesso.date()
+    while len(slot) < n:
+        quando = datetime.combine(giorno, dt_time(cfg.FB_ORA, cfg.FB_MINUTO), tzinfo=tz)
+        if giorno.weekday() in cfg.FB_GIORNI_FERIALI and \
+           quando > adesso + timedelta(minutes=15):
+            slot.append(quando)
+        giorno += timedelta(days=1)
+    return slot
+
+
+def testo_post_articolo(a, indice, totale, wl):
+    meta = cfg.TIPI_ARTICOLO.get(a.get("tipo") or "")
+    limite = (a.get("limite") or "").strip()
+    return cfg.POST_GIORNALIERO.format(
+        settimana=wl["settimana"], anno=wl["anno"], i=indice, tot=totale,
+        titolo=a["titolo"], rivista=a["rivista"], data=a["data"],
+        badge=f" · {meta['label'].upper()}" if meta else "",
+        sintesi=a.get("sintesi_it") or "",
+        rilevanza=a.get("rilevanza") or "",
+        limite=f"\n\nLimite: {limite}" if limite and limite != cfg.LIMITE_NON_DESUMIBILE else "",
+        pmid=a["pmid"],
+    )
+
+
+def pubblica_facebook_programmata(immagini, articoli, wl):
+    """Un post per articolo, uno per giorno feriale, tutti creati adesso e
+    programmati. A pubblicarli e' Facebook."""
+    coppie = list(zip(immagini, articoli))
+    slot = prossimi_slot_feriali(len(coppie))
+    ok = 0
+    creati = []
+    for k, ((percorso, art), quando) in enumerate(zip(coppie, slot), 1):
+        try:
+            # La foto si carica non pubblicata, poi il post di feed la allega
+            # e viene programmato: e' il percorso documentato per lo scheduling.
+            r = _fb_post(f"{cfg.FB_PAGE_ID}/photos", {"published": "false"},
+                         file_path=percorso)
+            campi = {
+                "message": testo_post_articolo(art, k, len(coppie), wl),
+                "attached_media[0]": json.dumps({"media_fbid": r["id"]}),
+                "published": "false",
+                "scheduled_publish_time": str(int(quando.timestamp())),
+            }
+            p = _fb_post(f"{cfg.FB_PAGE_ID}/feed", campi)
+            log.info(
+                f"    post {k}/{len(coppie)} programmato per "
+                f"{quando.strftime('%a %d/%m %H:%M')} -> {p.get('id')}"
+            )
+            if p.get("id"):
+                creati.append((p["id"], art))
+            ok += 1
+        except urllib.error.HTTPError as e:
+            log.error(f"    post {k} HTTP {e.code}: "
+                      f"{e.read().decode('utf-8', 'replace')[:300]}")
+        except Exception as e:
+            log.error(f"    post {k} fallito: {e}")
+
+    log.info(f"Facebook: {ok}/{len(coppie)} post programmati")
+    if creati:
+        scrivi_post_gruppo(creati[0][0], creati[0][1], wl)
+    if ok and slot[-1].date() - slot[0].date() > timedelta(days=6):
+        log.warning(
+            "Gli slot superano i 6 giorni: l'ultimo post cadrebbe dopo il digest "
+            "successivo. Valutare di anticipare FB_ORA o la corsa settimanale."
+        )
+    return ok > 0
+
+
+def link_post(post_id):
+    """Da '<page_id>_<post_id>' all'URL pubblico del post."""
+    parti = str(post_id).split("_")
+    if len(parti) == 2:
+        return f"https://www.facebook.com/{parti[0]}/posts/{parti[1]}"
+    return f"https://www.facebook.com/{post_id}"
+
+
+def scrivi_post_gruppo(primo_id, primo_art, wl, link=None):
+    """Prepara il messaggio da incollare a mano nel gruppo Facebook."""
+    testo = cfg.POST_GRUPPO.format(
+        nome=cfg.NOME_NEWSLETTER.split(" a cura")[0],
+        settimana=wl["settimana"], anno=wl["anno"],
+        primo_titolo=primo_art["titolo"],
+        link=link or link_post(primo_id),
+        pagina=cfg.FB_NOME_PAGINA,
+    )
+    with open(cfg.FB_FILE_GRUPPO, "w", encoding="utf-8") as f:
+        f.write(testo)
+    log.info(f"Messaggio per il gruppo scritto in {cfg.FB_FILE_GRUPPO}")
+    return testo
+
+
+def pubblica_facebook(immagini, articoli, wl):
+    """Un unico post multi-foto sulla Pagina. Mai bloccante."""
+    if not cfg.FB_ABILITATO:
+        return False
+    if not (cfg.FB_PAGE_ID and cfg.FB_PAGE_TOKEN):
+        log.warning("Facebook non configurato (FB_PAGE_ID/FB_PAGE_TOKEN): salto")
+        return False
+    if not immagini:
+        log.warning("Nessuna immagine da pubblicare su Facebook")
+        return False
+
+    if cfg.FB_UN_POST_AL_GIORNO:
+        return pubblica_facebook_programmata(immagini, articoli, wl)
+
+    try:
+        # 1. Le foto si caricano NON pubblicate: restituiscono un id da allegare.
+        media = []
+        for p in immagini:
+            r = _fb_post(f"{cfg.FB_PAGE_ID}/photos", {"published": "false"}, file_path=p)
+            media.append(r["id"])
+            log.info(f"    foto caricata: {os.path.basename(p)} -> {r['id']}")
+
+        # 2. Un solo post di feed che le raccoglie tutte.
+        campi = {"message": testo_post_facebook(articoli, wl)}
+        for k, mid in enumerate(media):
+            campi[f"attached_media[{k}]"] = json.dumps({"media_fbid": mid})
+        r = _fb_post(f"{cfg.FB_PAGE_ID}/feed", campi)
+        log.info(f"Post Facebook pubblicato: {r.get('id')} ({len(media)} foto)")
+        return True
+    except urllib.error.HTTPError as e:
+        log.error(f"Facebook HTTP {e.code}: {e.read().decode('utf-8', 'replace')[:400]}")
+    except Exception as e:
+        log.error(f"Pubblicazione Facebook fallita: {e}")
+    return False
+
+
 def build_html(articoli):
     wl = numero_settimana()
     arts_html = ""
@@ -854,24 +1171,38 @@ def build_html(articoli):
 </table></body></html>"""
 
 
-def invia_email(oggetto, html_body, destinatari):
+def invia_email(oggetto, html_body, destinatari, allegati=None):
     import smtplib
 
-    msg = MIMEMultipart("alternative")
+    # "mixed" contiene l'alternative (testo + HTML) piu' gli allegati PNG.
+    msg = MIMEMultipart("mixed")
     msg["Subject"] = oggetto
     msg["From"]    = f"POCUS Weekly Digest <{cfg.GMAIL_USER}>"
     # Destinatari in Bcc: nessuno vede gli indirizzi degli altri.
     msg["To"]      = cfg.GMAIL_USER
     msg["Bcc"]     = ", ".join(destinatari)
 
-    msg.attach(MIMEText(f"POCUS Weekly Digest — {oggetto}\nApri in HTML.", "plain", "utf-8"))
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    corpo = MIMEMultipart("alternative")
+    corpo.attach(MIMEText(f"POCUS Weekly Digest — {oggetto}\nApri in HTML.", "plain", "utf-8"))
+    corpo.attach(MIMEText(html_body, "html", "utf-8"))
+    msg.attach(corpo)
+
+    for percorso in allegati or []:
+        try:
+            with open(percorso, "rb") as f:
+                img = MIMEImage(f.read(), _subtype="png")
+            img.add_header("Content-Disposition", "attachment",
+                           filename=os.path.basename(percorso))
+            msg.attach(img)
+        except Exception as e:
+            log.warning(f"Allegato saltato ({percorso}): {e}")
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(cfg.GMAIL_USER, cfg.GMAIL_APP_PASSWORD)
             server.send_message(msg)
-        log.info(f"Email inviata via SMTP a {len(destinatari)} destinatari (Bcc)")
+        log.info(f"Email inviata via SMTP a {len(destinatari)} destinatari (Bcc), "
+                 f"{len(allegati or [])} immagini allegate")
         return True
     except Exception as e:
         log.error(f"Invio SMTP fallito: {e}")
@@ -1036,6 +1367,9 @@ def main():
         return False
     selezionati = con_sintesi
 
+    log.info("Generazione schede PNG...")
+    immagini = genera_immagini(selezionati)
+
     html_body = build_html(selezionati)
     oggetto = f"POCUS Weekly Digest — Settimana {wl['settimana']}/{wl['anno']}"
 
@@ -1044,6 +1378,23 @@ def main():
             f.write(html_body)
         log.info("=== DRY RUN: nessun invio, ne' email ne' Telegram ===")
         log.info(f"Anteprima HTML scritta in {cfg.DRY_RUN_FILE}")
+        log.info(f"Schede PNG in {cfg.IMG_DIR}/: {len(immagini)}")
+        with open("post_facebook.txt", "w", encoding="utf-8") as f:
+            if cfg.FB_UN_POST_AL_GIORNO:
+                slot = prossimi_slot_feriali(len(selezionati))
+                for k, (a, quando) in enumerate(zip(selezionati, slot), 1):
+                    f.write(f"{'=' * 70}\nPOST {k}/{len(selezionati)} — "
+                            f"programmato per {quando.strftime('%A %d/%m alle %H:%M')}\n"
+                            f"immagine: digest-s{str(wl['settimana']).zfill(2)}-"
+                            f"{str(k).zfill(2)}.png\n{'=' * 70}\n\n")
+                    f.write(testo_post_articolo(a, k, len(selezionati), wl))
+                    f.write("\n\n")
+                log.info(f"Didascalie Facebook ({len(selezionati)} post) in post_facebook.txt")
+            else:
+                f.write(testo_post_facebook(selezionati, wl))
+                log.info("Didascalia Facebook (post unico) in post_facebook.txt")
+        scrivi_post_gruppo(None, selezionati[0], wl,
+                           link="[link disponibile dopo la pubblicazione]")
         log.info("--- SELEZIONE FINALE ---")
         for i, a in enumerate(selezionati, 1):
             tipi = ", ".join(a.get("pubtypes") or []) or "tipo n/d"
@@ -1056,8 +1407,15 @@ def main():
         log.info("=== OK (dry run) ===")
         return True
 
-    ok_email = invia_email(oggetto, html_body, destinatari)
-    ok_telegram = invia_telegram(selezionati)
+    if cfg.SOLO_FACEBOOK:
+        log.warning("=== MODALITA' SOLO FACEBOOK: nessuna email, nessun Telegram ===")
+        ok_email = True
+    else:
+        ok_email = invia_email(oggetto, html_body, destinatari, allegati=immagini)
+    ok_telegram = True if cfg.SOLO_FACEBOOK else invia_telegram(selezionati)
+
+    # Facebook per ultimo: un errore qui non deve invalidare invii gia' riusciti.
+    pubblica_facebook(immagini, selezionati, wl)
 
     log.info("=== Email: OK ===" if ok_email else "=== Email: FALLITO ===")
     log.info("=== Telegram: OK ===" if ok_telegram
