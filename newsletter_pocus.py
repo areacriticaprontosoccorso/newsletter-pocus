@@ -202,14 +202,33 @@ def estrai_autori(item):
     return ", ".join(nomi)
 
 
+def _leggi_feed(url):
+    """Scarica e analizza un feed RSS. Restituisce la radice XML."""
+    return ET.fromstring(fetch_url(url))
+
+
 def fetch_feed(rivista):
     url = url_rss_pubmed(rivista["issn"], rivista.get("limit"))
     try:
-        raw = fetch_url(url)
-        root = ET.fromstring(raw)
+        root = _leggi_feed(url)
     except Exception as e:
         log.error(f"  {rivista['nlmta']}: errore RSS {e}")
         return []
+
+    # Un feed senza <item> arriva come HTTP 200 con XML valido: fetch_url non
+    # solleva nulla e non ritenta. Ma PubMed a volte restituisce feed vuoti in
+    # modo transitorio (il 26/08/2026 quattro riviste consolidate insieme), per
+    # cui vale un secondo tentativo prima di darla per persa.
+    if not root.findall(".//item"):
+        time.sleep(3)
+        try:
+            root = _leggi_feed(url)
+            if root.findall(".//item"):
+                log.info(f"  {rivista['nlmta']}: feed vuoto al primo tentativo, "
+                         "recuperato al secondo")
+        except Exception as e:
+            log.warning(f"  {rivista['nlmta']}: secondo tentativo fallito ({e})")
+
     articoli = []
     for item in root.findall(".//item"):
         titolo   = (item.findtext("title") or "").strip()
@@ -235,11 +254,15 @@ def fetch_feed(rivista):
             "url":        link or f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
         })
     if not articoli:
-        # Causa quasi sempre un ISSN errato: PubMed risponde 200 con un feed vuoto,
-        # quindi senza questo controllo la rivista sparirebbe in silenzio.
+        # Due cause possibili, e il messaggio non deve suggerirne una sola:
+        # un ISSN errato (feed sempre vuoto) o un'indisponibilità temporanea di
+        # PubMed (feed vuoto solo oggi). Se la rivista ha prodotto articoli nelle
+        # settimane precedenti, l'ISSN è giusto e si tratta della seconda.
         log.error(
-            f"  {rivista['nlmta']}: FEED VUOTO - verificare l'ISSN {rivista['issn']} "
-            "(per le riviste solo online provare l'eISSN)"
+            f"  {rivista['nlmta']}: FEED VUOTO (ISSN {rivista['issn']}). "
+            "Se la rivista funzionava nei run precedenti è un'indisponibilità "
+            "temporanea di PubMed; se non ha mai prodotto articoli, verificare "
+            "l'ISSN (per le riviste solo online provare l'eISSN)."
         )
     else:
         log.info(f"  {rivista['nlmta']}: {len(articoli)} articoli dal feed")
