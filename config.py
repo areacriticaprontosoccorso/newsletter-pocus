@@ -368,6 +368,7 @@ marginale.
 FORMATO DI RISPOSTA - restituisci SOLO un array JSON valido, senza testo prima o
 dopo, senza blocchi markdown. Scegli esclusivamente PMID presenti nella lista qui
 sopra: non inventare né modificare PMID.
+Nei valori testuali NON usare mai virgolette doppie: per citare un nome, un termine o una frase usa gli apici singoli ('...') oppure le caporali «...». Una virgoletta doppia dentro il testo rompe il formato JSON.
 
 [
   {{"pmid": "12345678", "tema": "ecografia polmonare", "perche": "motivo in max 15 parole"}},
@@ -477,6 +478,7 @@ ARTICOLI:
 FORMATO DI RISPOSTA - restituisci SOLO un array JSON valido, senza testo prima o dopo,
 senza blocchi markdown, con un oggetto per articolo, nello stesso ordine della lista.
 Riporta il "pmid" esattamente come ti è stato fornito.
+Nei valori testuali NON usare mai virgolette doppie: per citare un nome, un termine o una frase usa gli apici singoli ('...') oppure le caporali «...». Una virgoletta doppia dentro il testo rompe il formato JSON.
 
 [
   {{
@@ -515,6 +517,7 @@ Abstract: {abstract}
 
 FORMATO DI RISPOSTA - restituisci SOLO un array JSON valido con UN solo oggetto,
 senza testo prima o dopo, senza blocchi markdown:
+Nei valori testuali NON usare mai virgolette doppie: per citare un nome, un termine o una frase usa gli apici singoli ('...') oppure le caporali «...». Una virgoletta doppia dentro il testo rompe il formato JSON.
 
 [
   {{
