@@ -158,22 +158,25 @@ RIVISTE = [
 # PARAMETRI PIPELINE
 # ═══════════════════════════════════════════════════════════════════════════════
 GIORNI_RICERCA  = 7   # finestra temporale: ultimi 7 giorni (settimana)
+# ESearch per argomento su TUTTA PubMed, non sui soli RSS delle riviste.
+ESEARCH_RETMAX = 500
+ESTENDI_RICERCA = False  # evita riutilizzo articoli di settimane precedenti
 GIORNI_RICERCA_ESTESO = 14  # fallback se la settimana è troppo povera
-ARTICOLI_FINALI = 5   # numero articoli nel digest finale
+ARTICOLI_FINALI = 5   # MASSIMO di 5 articoli pertinenti, non quota obbligatoria
 ARTICOLI_RICHIESTI = 8  # quanti chiederne al modello: i 3 in più sono la riserva
                         # da cui il codice attinge per rispettare i vincoli
-MIN_EM_GEN = 2        # minimo di articoli dal nucleo tematico (eco/em)
+MIN_EM_GEN = 0        # rilevanza POCUS prima delle quote per rivista
 GRUPPI_PRIORITARI = {"eco", "em"}
 ETICHETTA_GRUPPO = {"eco": "ecografia", "em": "urgenza",
                     "gen": "generale", "spec": "specialistica"}
-MINIMO_ARTICOLI = 3   # sotto questa soglia scatta il fallback di riempimento
+MINIMO_ARTICOLI = 1   # nessun articolo non validato aggiunto per fare numero
 MAX_PER_TEMA    = 2   # max articoli sullo stesso tema clinico nello stesso digest
 MAX_CANDIDATI_PROMPT = 150  # tetto di candidati inviati al filtro (protegge i token)
 
 # Token per tipo di chiamata.
 # NB: NON reintrodurre il parametro "temperature": è deprecato per questo modello
 # e l'API risponde 400 (verificato sul run del 03/08/2026).
-MAX_TOKENS_FILTRO          = 800
+MAX_TOKENS_FILTRO          = 1200
 MAX_TOKENS_SINTESI_MULTI   = 4000
 MAX_TOKENS_SINTESI_SINGOLA = 800
 
@@ -244,7 +247,7 @@ NCBI_EMAIL     = ""    # opzionale: NCBI chiede un contatto per usi automatizzat
 # guida sono fra i contenuti più utili del digest.
 PUBTYPE_ESCLUSI = {
     "Letter", "Comment", "Editorial", "Published Erratum", "Retraction of Publication",
-    "Retracted Publication", "Expression of Concern", "Case Reports", "News",
+    "Retracted Publication", "Expression of Concern", "News",
     "Newspaper Article", "Biography", "Historical Article", "Portrait", "Interview",
     "Congress", "Video-Audio Media", "Address", "Autobiography", "Bibliography",
     "Personal Narrative", "Introductory Journal Article", "Patient Education Handout",
@@ -290,7 +293,8 @@ CONTESTO_POCUS = """CONTESTO DEL LETTORE:
 - Medici di Pronto Soccorso, Medicina d'Urgenza e Area Critica che praticano
   ecografia clinica al letto del paziente (POCUS), in un DEA di II livello
   urbano di Torino, Servizio Sanitario Nazionale italiano.
-- Casistica adulta indifferenziata, con quota rilevante di anziani fragili.
+- Casistica adulta e pediatrica, compresi pazienti critici e anziani fragili.
+- Includere POCUS in ambito preospedaliero e durante il trasporto sanitario.
 - L'ecografo è disponibile in shock room, in OBI e nelle sale visita;
   l'esame lo esegue e lo interpreta il medico d'urgenza, non il radiologo.
 
@@ -300,6 +304,8 @@ oppure per guidare una procedura. Il criterio non è che l'articolo nomini
 l'ecografia, ma che cambi il modo in cui il lettore impugna la sonda o
 interpreta ciò che vede.
 
+Sono di interesse anche POCUS pediatrico, neonatale in urgenza e preospedaliero,
+quando il risultato guida una decisione clinica o una procedura.
 Sono di interesse: protocolli e applicazioni POCUS in urgenza (FAST ed e-FAST,
 ecografia polmonare, ecocardiografia mirata, valutazione della vena cava,
 ecografia vascolare, RUSH, BLUE, FALLS); ecografia procedurale (accessi
@@ -351,7 +357,10 @@ ESCLUDI:
 - Imaging non ecografico (TC, RM, radiologia convenzionale).
 - Ricerca su fisica, ingegneria o bioeffetti degli ultrasuoni senza ricaduta
   clinica immediata.
-- Case report e case series.
+- Case series senza informazioni metodologiche o insegnamenti POCUS utili.
+- I case report POCUS sono AMMESSI, se descrivono una manovra, un reperto
+  o una decisione clinica ecoguidata trasferibile alla pratica; valutarli
+  con peso metodologico inferiore a studi comparativi e revisioni.
 - Studi su sistemi sanitari non europei senza trasferibilità.
 
 ARTICOLI CANDIDATI:
@@ -362,8 +371,9 @@ non {n_finali}. Ne verranno pubblicate soltanto le prime {n_finali}: le voci
 successive sono la riserva da cui il sistema attinge per rispettare i vincoli di
 composizione, e servono anche quando sono meno interessanti delle prime.
 Restituisci meno di {n} voci solo se i candidati davvero pertinenti sono meno.
-Meglio una graduatoria corta che riempita con articoli in cui l'ecografia è
-marginale.
+Meglio una graduatoria corta (anche UNA SOLA VOCE o vuota) che includere
+studi in cui l'ecografia e' marginale o specialistica non POCUS.
+Non includere articoli per raggiungere una quota numerica.
 
 FORMATO DI RISPOSTA - restituisci SOLO un array JSON valido, senza testo prima o
 dopo, senza blocchi markdown. Scegli esclusivamente PMID presenti nella lista qui
