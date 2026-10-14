@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta, timezone, time as dt_time
 
 import config as cfg
+from pocus_search import cerca_articoli_pubmed, potenzialmente_pocus
 
 DESTINATARI_FISSI = [
     "francesco.panero@aslcittaditorino.it",
@@ -443,38 +444,18 @@ def escluso_per_pubtype(articolo):
 
 
 def raccogli_candidati(giorni=None):
+    """Ricerca POCUS in tutta PubMed (EDAT); ogni candidato va poi validato con AI."""
     giorni = giorni or cfg.GIORNI_RICERCA
-    log.info(f"Lettura RSS PubMed: ultimi {giorni} giorni su {len(cfg.RIVISTE)} riviste")
-    cutoff = datetime.now(timezone.utc) - timedelta(days=giorni)
-    tutti = []
-    for rivista in cfg.RIVISTE:
-        feed = fetch_feed(rivista)
-        recenti = [
-            a for a in feed
-            if a["pubdate_dt"] and a["pubdate_dt"].astimezone(timezone.utc) >= cutoff
-        ]
-        log.info(f"    -> {len(recenti)} pubblicati negli ultimi {giorni}g")
-        tutti.extend(recenti)
-        time.sleep(0.3)
-    seen = set()
-    unici = []
-    for a in tutti:
-        if a["pmid"] not in seen:
-            seen.add(a["pmid"])
-            unici.append(a)
-    # Abstract veri e PublicationType da E-utilities, prima di filtrare.
-    unici = arricchisci_con_efetch(unici)
-
+    log.info(f"Ricerca POCUS in tutta PubMed: ultimi {giorni} giorni (EDAT)")
+    unici = cerca_articoli_pubmed(giorni=giorni)
     candidati = []
-    scartati_pubtype = scartati_titolo = scartati_abstract = 0
+    scartati_pubtype = scartati_titolo = scartati_abstract = scartati_pocus = 0
     for a in unici:
-        # 1. PublicationType: criterio primario, etichette ufficiali di PubMed.
         escluso, tipo = escluso_per_pubtype(a)
         if escluso:
             scartati_pubtype += 1
             log.info(f"    [scarto/pubtype {tipo}] {a['titolo'][:80]}")
             continue
-        # 2. Titolo: rete di sicurezza per i record su cui efetch non ha risposto.
         if escluso_per_titolo(a["titolo"]):
             scartati_titolo += 1
             log.info(f"    [scarto/titolo] {a['titolo'][:90]}")
@@ -483,15 +464,17 @@ def raccogli_candidati(giorni=None):
             scartati_abstract += 1
             log.info(f"    [scarto/abstract {len(a['abstract'] or '')}c] {a['titolo'][:90]}")
             continue
+        if not potenzialmente_pocus(a["titolo"], a["abstract"]):
+            scartati_pocus += 1
+            log.info(f"    [scarto/non POCUS] {a['titolo'][:90]}")
+            continue
         candidati.append(a)
-
     log.info(
-        f"Unici {len(unici)} -> scartati {scartati_pubtype} per pubtype, "
-        f"{scartati_titolo} per titolo, {scartati_abstract} per abstract "
-        f"-> {len(candidati)} candidati"
+        f"ESearch: {len(unici)} articoli -> scarti: {scartati_pubtype} pubtype, "
+        f"{scartati_titolo} titolo, {scartati_abstract} abstract, "
+        f"{scartati_pocus} non-POCUS -> {len(candidati)} da classificare con AI"
     )
     return candidati
-
 
 def chiama_claude(prompt, max_tokens=1500, system=None):
     # NB: NON passare "temperature" e NON far terminare la conversazione con un
@@ -591,8 +574,9 @@ def componi_digest(graduatoria):
 
 
 def filtra_top_articoli(candidati):
-    if len(candidati) <= cfg.ARTICOLI_FINALI:
-        return candidati
+    # La classificazione clinica AI e' obbligatoria anche con <=5 candidati.
+    if not candidati:
+        return []
 
     # Tetto ai candidati inviati al modello: con molte riviste il prompt cresce in
     # fretta e una lista troppo lunga peggiora la selezione oltre che i costi.
@@ -670,30 +654,11 @@ def filtra_top_articoli(candidati):
     except Exception as e:
         log.error(f"Filtro Claude fallito ({e}); si procede con il fallback per data")
 
-    # Il prompt autorizza a restituire meno di ARTICOLI_FINALI se la settimana e'
-    # povera: si riempie solo sotto MINIMO_ARTICOLI, e prima con gli articoli messi
-    # in riserva dal vincolo di diversita', poi con i piu' recenti.
-    if len(selezionati) < cfg.MINIMO_ARTICOLI:
-        log.warning(
-            f"Solo {len(selezionati)} articoli selezionati (minimo {cfg.MINIMO_ARTICOLI}): "
-            "completo con riserva e poi per data"
-        )
-        gia = {a["pmid"] for a in selezionati}
-        riserva = [a for a in scartati_diversita if a["pmid"] not in gia]
-        pmid_riserva = {a["pmid"] for a in riserva}
-        altri = [
-            a for a in candidati
-            if a["pmid"] not in gia and a["pmid"] not in pmid_riserva
-        ]
-        altri.sort(
-            key=lambda a: a["pubdate_dt"] or datetime.min.replace(tzinfo=timezone.utc),
-            reverse=True,
-        )
-        for a in riserva + altri:
-            if len(selezionati) >= cfg.MINIMO_ARTICOLI:
-                break
-            selezionati.append(a)
-            gia.add(a["pmid"])
+    # NESSUN RIEMPIMENTO: pubblica solo gli articoli confermati pertinenti
+    # dal modello. In caso di errore AI, nessun articolo viene pubblicato.
+    if not selezionati:
+        log.error("Nessun articolo validato come POCUS: invio da annullare")
+        return []
 
     selezionati = componi_digest(selezionati)
     log.info(f"Selezione finale: {len(selezionati)} articoli")
@@ -1433,15 +1398,13 @@ def main():
 
     candidati = raccogli_candidati(giorni=cfg.GIORNI_RICERCA)
 
-    if len(candidati) < cfg.ARTICOLI_FINALI + 3:
-        log.warning(
-            f"Solo {len(candidati)} candidati a {cfg.GIORNI_RICERCA} giorni - "
-            f"estendo a {cfg.GIORNI_RICERCA_ESTESO}"
-        )
+    if not candidati and cfg.ESTENDI_RICERCA:
+        log.warning(f"Nessun candidato in {cfg.GIORNI_RICERCA} giorni: "
+                    f"estendo a {cfg.GIORNI_RICERCA_ESTESO} giorni")
         candidati = raccogli_candidati(giorni=cfg.GIORNI_RICERCA_ESTESO)
 
     if not candidati:
-        log.error("Nessun articolo trovato nemmeno a 14 giorni")
+        log.error("Nessun candidato POCUS nel periodo configurato")
         return False
 
     selezionati = filtra_top_articoli(candidati)
@@ -1523,4 +1486,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(0 if main() else 1)
