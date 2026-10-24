@@ -62,6 +62,9 @@ FB_ORA               = 9    # ora di pubblicazione (0-23), fuso di Roma.
                             # EM pubblica alle 16:00 sulla STESSA Pagina: orari
                             # distinti per non sovrapporre i due digest.
 FB_MINUTO            = 0
+# Post sui corsi (da corsi.json): un post per corso, a un orario proprio.
+FB_ORA_CORSI         = 12
+FB_MINUTO_CORSI      = 30
 FB_GIORNI_FERIALI    = {0, 1, 2, 3, 4}   # lunedì=0 ... venerdì=4
 
 # Didascalia del singolo post giornaliero.
@@ -282,6 +285,8 @@ COLOR_DARK      = "#1a2a30"
 # URL PUBBLICO del logo (vuoto = nessun logo). Deve puntare a un file immagine
 # raggiungibile pubblicamente (le email non supportano immagini locali/base64).
 LOGO_URL        = "https://raw.githubusercontent.com/areacriticaprontosoccorso/newsletter-pocus/main/logo.jpg"
+# Base pubblica dei file del repo (locandine dei corsi): https://.../main/<percorso>
+URL_RAW_REPO    = "https://raw.githubusercontent.com/areacriticaprontosoccorso/newsletter-pocus/main/"
 NEWSLETTER_PAGE_URL = "https://areacriticaprontosoccorso.github.io/newsletter-pocus/"
 
 # ═══════════════════════════════════════════════════════════════════════════════
