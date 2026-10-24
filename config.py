@@ -62,6 +62,9 @@ FB_ORA               = 9    # ora di pubblicazione (0-23), fuso di Roma.
                             # EM pubblica alle 16:00 sulla STESSA Pagina: orari
                             # distinti per non sovrapporre i due digest.
 FB_MINUTO            = 0
+# Post sui corsi (da corsi.json): un post per corso, a un orario proprio.
+FB_ORA_CORSI         = 12
+FB_MINUTO_CORSI      = 30
 FB_GIORNI_FERIALI    = {0, 1, 2, 3, 4}   # lunedì=0 ... venerdì=4
 
 # Didascalia del singolo post giornaliero.

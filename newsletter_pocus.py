@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta, timezone, time as dt_time
 
 import config as cfg
+import corsi as avvisi
 from pocus_search import cerca_articoli_pubmed, potenzialmente_pocus
 
 DESTINATARI_FISSI = [
@@ -1043,6 +1044,45 @@ def pubblica_facebook_programmata(immagini, articoli, wl):
     return ok > 0
 
 
+def prossimi_slot_corsi(n):
+    """Slot feriali per i post sui corsi: stesso criterio di prossimi_slot_feriali,
+    ma a un orario proprio (FB_ORA_CORSI) per non sovrapporsi ai post degli articoli."""
+    tz = ZoneInfo(cfg.FB_FUSO)
+    adesso = datetime.now(tz)
+    slot, giorno = [], adesso.date()
+    while len(slot) < n:
+        quando = datetime.combine(giorno, dt_time(cfg.FB_ORA_CORSI, cfg.FB_MINUTO_CORSI),
+                                  tzinfo=tz)
+        if giorno.weekday() in cfg.FB_GIORNI_FERIALI and \
+           quando > adesso + timedelta(minutes=15):
+            slot.append(quando)
+        giorno += timedelta(days=1)
+    return slot
+
+
+def pubblica_facebook_corsi(corsi):
+    """Un post programmato per corso, uno per giorno feriale. Mai bloccante."""
+    if not corsi or not cfg.FB_ABILITATO or not (cfg.FB_PAGE_ID and cfg.FB_PAGE_TOKEN):
+        return False
+    ok = 0
+    for c, quando in zip(corsi, prossimi_slot_corsi(len(corsi))):
+        try:
+            campi = {"message": avvisi.testo_facebook(c), "published": "false",
+                     "scheduled_publish_time": str(int(quando.timestamp()))}
+            if c["link"]:
+                campi["link"] = c["link"]
+            p = _fb_post(f"{cfg.FB_PAGE_ID}/feed", campi)
+            log.info(f"    corso '{c['titolo'][:50]}' programmato per "
+                     f"{quando.strftime('%a %d/%m %H:%M')} -> {p.get('id')}")
+            ok += 1
+        except urllib.error.HTTPError as e:
+            log.error(f"    post corso HTTP {e.code}: {e.read().decode('utf-8', 'replace')[:300]}")
+        except Exception as e:
+            log.error(f"    post corso fallito: {e}")
+    log.info(f"Facebook corsi: {ok}/{len(corsi)} post programmati")
+    return ok > 0
+
+
 def link_post(post_id):
     """Da '<page_id>_<post_id>' all'URL pubblico del post."""
     parti = str(post_id).split("_")
@@ -1102,8 +1142,9 @@ def pubblica_facebook(immagini, articoli, wl):
     return False
 
 
-def build_html(articoli):
+def build_html(articoli, corsi=None):
     wl = numero_settimana()
+    blocco_corsi = avvisi.html_corsi(corsi, cfg.COLOR_ACCENT)
     arts_html = ""
     for i, a in enumerate(articoli):
         doi_link = (
@@ -1219,6 +1260,7 @@ def build_html(articoli):
           <span style="font-family:monospace;font-size:10px;color:#888;letter-spacing:1px;">{riviste_str}</span>
         </td>
       </tr>
+      {blocco_corsi}
       <tr><td style="background:#ffffff;"><table width="100%" cellpadding="0" cellspacing="0">{arts_html}</table></td></tr>
       <tr>
         <td style="background:{cfg.COLOR_DARK};padding:22px 32px;">
@@ -1348,7 +1390,7 @@ def build_telegram_footer():
     )
 
 
-def invia_telegram(articoli):
+def invia_telegram(articoli, corsi=None):
     """Invia la newsletter completa su Telegram come serie di messaggi."""
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     chat_id   = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -1365,6 +1407,13 @@ def invia_telegram(articoli):
         successi += 1
     time.sleep(1)
 
+    # 1b. Avviso corsi (se ce ne sono), subito dopo l'intestazione
+    msg_corsi = avvisi.testo_telegram(corsi)
+    if msg_corsi:
+        if telegram_send_message(bot_token, chat_id, msg_corsi):
+            successi += 1
+        time.sleep(1)
+
     # 2. Un messaggio per articolo
     for i, art in enumerate(articoli, 1):
         msg = build_telegram_articolo(i, art)
@@ -1379,7 +1428,7 @@ def invia_telegram(articoli):
     if telegram_send_message(bot_token, chat_id, footer):
         successi += 1
 
-    totale = len(articoli) + 2
+    totale = len(articoli) + 2 + (1 if msg_corsi else 0)
     log.info(f"Telegram: inviati {successi}/{totale} messaggi al canale")
     return successi == totale
 
@@ -1431,7 +1480,10 @@ def main():
     log.info("Generazione schede PNG...")
     immagini = genera_immagini(selezionati)
 
-    html_body = build_html(selezionati)
+    corsi = avvisi.carica_corsi("pocus")
+    if corsi:
+        log.info("Avvisi corsi: " + "; ".join(f"{c['titolo'][:50]} ({avvisi.data_leggibile(c)})" for c in corsi))
+    html_body = build_html(selezionati, corsi)
     oggetto = f"POCUS Weekly Digest — Settimana {wl['settimana']}/{wl['anno']}"
 
     if cfg.DRY_RUN:
@@ -1454,6 +1506,13 @@ def main():
             else:
                 f.write(testo_post_facebook(selezionati, wl))
                 log.info("Didascalia Facebook (post unico) in post_facebook.txt")
+        if corsi:
+            with open("post_facebook.txt", "a", encoding="utf-8") as f:
+                for c, quando in zip(corsi, prossimi_slot_corsi(len(corsi))):
+                    f.write(f"{'=' * 70}\nPOST CORSO — programmato per "
+                            f"{quando.strftime('%A %d/%m alle %H:%M')}\n{'=' * 70}\n\n"
+                            f"{avvisi.testo_facebook(c)}\n\n")
+            log.info(f"Avvisi corsi ({len(corsi)}) in post_facebook.txt")
         scrivi_post_gruppo(None, selezionati[0], wl,
                            link="[link disponibile dopo la pubblicazione]")
         log.info("--- SELEZIONE FINALE ---")
@@ -1473,10 +1532,14 @@ def main():
         ok_email = True
     else:
         ok_email = invia_email(oggetto, html_body, destinatari, allegati=immagini)
-    ok_telegram = True if cfg.SOLO_FACEBOOK else invia_telegram(selezionati)
+    ok_telegram = True if cfg.SOLO_FACEBOOK else invia_telegram(selezionati, corsi)
 
     # Facebook per ultimo: un errore qui non deve invalidare invii gia' riusciti.
     pubblica_facebook(immagini, selezionati, wl)
+    try:
+        pubblica_facebook_corsi(corsi)
+    except Exception as e:
+        log.error(f"Post Facebook dei corsi non programmati: {e}")
 
     log.info("=== Email: OK ===" if ok_email else "=== Email: FALLITO ===")
     log.info("=== Telegram: OK ===" if ok_telegram

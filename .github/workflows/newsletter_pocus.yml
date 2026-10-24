@@ -3,6 +3,9 @@ name: POCUS Weekly Digest
 on:
   pull_request:
     paths:
+      - 'corsi.py'
+      - 'corsi.json'
+      - 'corsi.esempio.json'
       - 'newsletter_pocus.py'
       - 'pocus_search.py'
       - 'config.py'
@@ -47,6 +50,10 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m unittest discover -s tests -v
+      - name: Controlla corsi.json
+        # Non blocca l'invio: un errore compare come avviso giallo nel riepilogo del run.
+        continue-on-error: true
+        run: python corsi.py
 
   send-newsletter:
     if: github.event_name != 'pull_request'
@@ -72,6 +79,11 @@ jobs:
 
       - name: Verifica test offline
         run: python -m unittest discover -s tests -v
+
+      - name: Controlla corsi.json
+        # Non blocca l'invio: un errore compare come avviso giallo nel riepilogo del run.
+        continue-on-error: true
+        run: python corsi.py
 
       - name: Run newsletter
         run: python newsletter_pocus.py
