@@ -285,6 +285,8 @@ COLOR_DARK      = "#1a2a30"
 # URL PUBBLICO del logo (vuoto = nessun logo). Deve puntare a un file immagine
 # raggiungibile pubblicamente (le email non supportano immagini locali/base64).
 LOGO_URL        = "https://raw.githubusercontent.com/areacriticaprontosoccorso/newsletter-pocus/main/logo.jpg"
+# Base pubblica dei file del repo (locandine dei corsi): https://.../main/<percorso>
+URL_RAW_REPO    = "https://raw.githubusercontent.com/areacriticaprontosoccorso/newsletter-pocus/main/"
 NEWSLETTER_PAGE_URL = "https://areacriticaprontosoccorso.github.io/newsletter-pocus/"
 
 # ═══════════════════════════════════════════════════════════════════════════════

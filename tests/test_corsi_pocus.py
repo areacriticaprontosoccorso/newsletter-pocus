@@ -13,7 +13,7 @@ def un_corso():
     return {"titolo": "Corso base di ecografia", "inizio": date(2026, 11, 14),
             "fine": date(2026, 11, 15), "ora": "9:00–17:00", "luogo": "Torino",
             "descrizione": "Parte pratica.", "posti": "", "link": "https://esempio.it/x",
-            "iscrizioni_fino": None}
+            "iscrizioni_fino": None, "immagine_file": None, "immagine_url": ""}
 
 
 def un_articolo():
@@ -66,6 +66,38 @@ class FacebookTest(unittest.TestCase):
         self.assertEqual(campi["link"], "https://esempio.it/x")
         self.assertIn("scheduled_publish_time", campi)
         self.assertIn("Corso base di ecografia", campi["message"])
+
+    def test_locandina_caricata_e_allegata(self):
+        c = dict(un_corso(), immagine_file="/tmp/locandina.png", immagine_url="https://x/l.png")
+        chiamate = []
+
+        def finto(percorso, campi, file_path=None):
+            chiamate.append((percorso, dict(campi), file_path))
+            return {"id": "FOTO1" if percorso.endswith("/photos") else "1_2"}
+
+        with patch.object(cfg, "FB_PAGE_ID", "1"), patch.object(cfg, "FB_PAGE_TOKEN", "t"), \
+                patch.object(np_, "_fb_post", side_effect=finto):
+            self.assertTrue(np_.pubblica_facebook_corsi([c]))
+        self.assertEqual(chiamate[0][0], "1/photos")
+        self.assertEqual(chiamate[0][2], "/tmp/locandina.png")
+        feed = chiamate[1][1]
+        self.assertEqual(json.loads(feed["attached_media[0]"]), {"media_fbid": "FOTO1"})
+        self.assertNotIn("link", feed)
+
+    def test_locandina_non_caricata_post_solo_testo(self):
+        c = dict(un_corso(), immagine_file="/tmp/locandina.png", immagine_url="https://x/l.png")
+
+        def finto(percorso, campi, file_path=None):
+            if percorso.endswith("/photos"):
+                raise RuntimeError("upload fallito")
+            return {"id": "1_2"}
+
+        with patch.object(cfg, "FB_PAGE_ID", "1"), patch.object(cfg, "FB_PAGE_TOKEN", "t"), \
+                patch.object(np_, "_fb_post", side_effect=finto) as m:
+            self.assertTrue(np_.pubblica_facebook_corsi([c]))
+        feed = m.call_args.args[1]
+        self.assertNotIn("attached_media[0]", feed)
+        self.assertEqual(feed["link"], "https://esempio.it/x")
 
     def test_senza_credenziali_o_corsi_non_pubblica(self):
         with patch.object(cfg, "FB_PAGE_ID", ""), patch.object(np_, "_fb_post") as m:

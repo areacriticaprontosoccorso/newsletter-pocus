@@ -1069,7 +1069,22 @@ def pubblica_facebook_corsi(corsi):
         try:
             campi = {"message": avvisi.testo_facebook(c), "published": "false",
                      "scheduled_publish_time": str(int(quando.timestamp()))}
-            if c["link"]:
+            media = None
+            if c.get("immagine_file") or c.get("immagine_url"):
+                # Locandina: foto non pubblicata, poi allegata al post (come le schede).
+                # Se il caricamento fallisce si programma il solo testo.
+                try:
+                    if c.get("immagine_file"):
+                        media = _fb_post(f"{cfg.FB_PAGE_ID}/photos", {"published": "false"},
+                                         file_path=c["immagine_file"])["id"]
+                    else:
+                        media = _fb_post(f"{cfg.FB_PAGE_ID}/photos",
+                                         {"published": "false", "url": c["immagine_url"]})["id"]
+                except Exception as e:
+                    log.warning(f"    locandina non caricata ({e}): post solo testo")
+            if media:
+                campi["attached_media[0]"] = json.dumps({"media_fbid": media})
+            elif c["link"]:
                 campi["link"] = c["link"]
             p = _fb_post(f"{cfg.FB_PAGE_ID}/feed", campi)
             log.info(f"    corso '{c['titolo'][:50]}' programmato per "
@@ -1144,7 +1159,7 @@ def pubblica_facebook(immagini, articoli, wl):
 
 def build_html(articoli, corsi=None):
     wl = numero_settimana()
-    blocco_corsi = avvisi.html_corsi(corsi, cfg.COLOR_ACCENT)
+    blocco_corsi = avvisi.html_corsi(corsi, cfg.COLOR_ACCENT, anteprima_locale=cfg.DRY_RUN)
     arts_html = ""
     for i, a in enumerate(articoli):
         doi_link = (
@@ -1407,12 +1422,13 @@ def invia_telegram(articoli, corsi=None):
         successi += 1
     time.sleep(1)
 
-    # 1b. Avviso corsi (se ce ne sono), subito dopo l'intestazione
-    msg_corsi = avvisi.testo_telegram(corsi)
-    if msg_corsi:
-        if telegram_send_message(bot_token, chat_id, msg_corsi):
-            successi += 1
-        time.sleep(1)
+    # 1b. Avviso corsi (se ce ne sono, con locandina), subito dopo l'intestazione
+    n_corsi = len(corsi or [])
+    if n_corsi:
+        ok_corsi, _ = avvisi.invia_telegram(
+            bot_token, chat_id, corsi,
+            lambda testo: telegram_send_message(bot_token, chat_id, testo))
+        successi += ok_corsi
 
     # 2. Un messaggio per articolo
     for i, art in enumerate(articoli, 1):
@@ -1428,7 +1444,7 @@ def invia_telegram(articoli, corsi=None):
     if telegram_send_message(bot_token, chat_id, footer):
         successi += 1
 
-    totale = len(articoli) + 2 + (1 if msg_corsi else 0)
+    totale = len(articoli) + 2 + n_corsi
     log.info(f"Telegram: inviati {successi}/{totale} messaggi al canale")
     return successi == totale
 
@@ -1480,7 +1496,7 @@ def main():
     log.info("Generazione schede PNG...")
     immagini = genera_immagini(selezionati)
 
-    corsi = avvisi.carica_corsi("pocus")
+    corsi = avvisi.carica_corsi("pocus", base_url=cfg.URL_RAW_REPO)
     if corsi:
         log.info("Avvisi corsi: " + "; ".join(f"{c['titolo'][:50]} ({avvisi.data_leggibile(c)})" for c in corsi))
     html_body = build_html(selezionati, corsi)
@@ -1509,8 +1525,10 @@ def main():
         if corsi:
             with open("post_facebook.txt", "a", encoding="utf-8") as f:
                 for c, quando in zip(corsi, prossimi_slot_corsi(len(corsi))):
+                    img = c.get("immagine_file") or c.get("immagine_url") or "nessuna"
                     f.write(f"{'=' * 70}\nPOST CORSO — programmato per "
-                            f"{quando.strftime('%A %d/%m alle %H:%M')}\n{'=' * 70}\n\n"
+                            f"{quando.strftime('%A %d/%m alle %H:%M')}\n"
+                            f"locandina: {img}\n{'=' * 70}\n\n"
                             f"{avvisi.testo_facebook(c)}\n\n")
             log.info(f"Avvisi corsi ({len(corsi)}) in post_facebook.txt")
         scrivi_post_gruppo(None, selezionati[0], wl,
