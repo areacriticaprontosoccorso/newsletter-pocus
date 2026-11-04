@@ -1,0 +1,40 @@
+2026-11-04 22:04:13,368 [WARNING] corsi.json non leggibile, nessun avviso corsi: Expecting property name enclosed in double quotes: line 1 column 3 (char 2)
+2026-11-04 22:04:13,369 [INFO] 3 corsi in programma: ne annuncio i primi 2
+2026-11-04 22:04:13,370 [WARNING] voce 1 ignorata: servono 'titolo' e 'data_inizio' (AAAA-MM-GG)
+2026-11-04 22:04:13,370 [WARNING] voce 2 ignorata: servono 'titolo' e 'data_inizio' (AAAA-MM-GG)
+2026-11-04 22:04:13,373 [INFO] Corso 'Corso POCUS': non in questa settimana (ogni 2 settimane)
+2026-11-04 22:04:13,373 [INFO] Corso 'Corso POCUS': non in questa settimana (ogni 2 settimane)
+2026-11-04 22:04:13,374 [INFO] Corso 'Corso POCUS': non in questa settimana (ogni 2 settimane)
+2026-11-04 22:04:13,374 [INFO] Corso 'Corso POCUS': non in questa settimana (ogni 2 settimane)
+2026-11-04 22:04:13,375 [INFO] Corso 'Corso POCUS': non in questa settimana (ogni 2 settimane)
+2026-11-04 22:04:13,375 [WARNING] voce 1 (Corso POCUS): 'ogni_settimane' deve essere un numero da 1 a 8; uso 1 (ogni settimana)
+2026-11-04 22:04:13,382 [WARNING] immagine 'locandine/corso uno.png' ignorata (file 'locandine/corso uno.png' troppo grande (0 KB, massimo 0 KB)): l'avviso esce senza locandina
+2026-11-04 22:04:13,383 [WARNING] immagine 'locandine/non_esiste.png' ignorata (file 'locandine/non_esiste.png' non trovato nel repo): l'avviso esce senza locandina
+2026-11-04 22:04:13,383 [WARNING] immagine '../segreto.png' ignorata (deve essere un percorso nel repo (es. locandine/corso.jpg; formati jpg, png, gif) o un URL https): l'avviso esce senza locandina
+2026-11-04 22:04:13,384 [WARNING] immagine '/etc/passwd.png' ignorata (deve essere un percorso nel repo (es. locandine/corso.jpg; formati jpg, png, gif) o un URL https): l'avviso esce senza locandina
+2026-11-04 22:04:13,384 [WARNING] immagine 'locandine/corso uno.exe' ignorata (deve essere un percorso nel repo (es. locandine/corso.jpg; formati jpg, png, gif) o un URL https): l'avviso esce senza locandina
+2026-11-04 22:04:13,385 [WARNING] immagine 'javascript:alert(1)' ignorata (deve essere un percorso nel repo (es. locandine/corso.jpg; formati jpg, png, gif) o un URL https): l'avviso esce senza locandina
+2026-11-04 22:04:13,386 [WARNING] immagine 'ftp://a/b.png' ignorata (file 'ftp://a/b.png' non trovato nel repo): l'avviso esce senza locandina
+2026-11-04 22:04:13,391 [ERROR]     post corso fallito: boom
+2026-11-04 22:04:13,391 [INFO] Facebook corsi: 0/1 post programmati
+2026-11-04 22:04:13,391 [INFO]     corso 'Corso base di ecografia' programmato per Thu 05/11 12:30 -> 1_2
+2026-11-04 22:04:13,392 [INFO] Facebook corsi: 1/1 post programmati
+2026-11-04 22:04:13,392 [WARNING]     locandina non caricata (upload fallito): post solo testo
+2026-11-04 22:04:13,392 [INFO]     corso 'Corso base di ecografia' programmato per Thu 05/11 12:30 -> 1_2
+2026-11-04 22:04:13,392 [INFO] Facebook corsi: 1/1 post programmati
+2026-11-04 22:04:13,393 [INFO]     corso 'Corso base di ecografia' programmato per Thu 05/11 12:30 -> 1_2
+2026-11-04 22:04:13,393 [INFO] Facebook corsi: 1/1 post programmati
+2026-11-04 22:04:13,394 [INFO] Telegram: inviati 4/4 messaggi al canale
+2026-11-04 22:04:13,396 [INFO] Telegram: inviati 3/3 messaggi al canale
+2026-11-04 22:04:13,398 [INFO] PubMed ESearch: 2 hit in 7 giorni, PMID recuperati 2
+2026-11-04 22:04:13,399 [INFO] Claude filtra 4 candidati -> 8 in graduatoria, 5 pubblicati
+2026-11-04 22:04:13,399 [ERROR] Filtro Claude fallito (Anthropic API unavailable); si procede con il fallback per data
+2026-11-04 22:04:13,399 [ERROR] Nessun articolo validato come POCUS: invio da annullare
+2026-11-04 22:04:13,399 [INFO] Claude filtra 4 candidati -> 8 in graduatoria, 5 pubblicati
+2026-11-04 22:04:13,400 [INFO]     [10000000] ecografia polmonare -- POCUS
+2026-11-04 22:04:13,400 [INFO] Composizione: 0 da riviste ecografia/urgenza su 1
+2026-11-04 22:04:13,400 [INFO] Selezione finale: 1 articoli
+2026-11-04 22:04:13,400 [INFO] Claude filtra 4 candidati -> 8 in graduatoria, 5 pubblicati
+2026-11-04 22:04:13,400 [INFO]     [10000001] ecografia vascolare -- POCUS
+2026-11-04 22:04:13,400 [INFO] Composizione: 0 da riviste ecografia/urgenza su 1
+2026-11-04 22:04:13,400 [INFO] Selezione finale: 1 articoli
