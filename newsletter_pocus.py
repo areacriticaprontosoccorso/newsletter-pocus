@@ -1076,7 +1076,7 @@ def pubblica_instagram(articoli, immagini, wl, dry_run=False):
         schede = schede or immagini        # ripiego: le schede della mail
         corsi_ig = avvisi.carica_corsi("pocus", base_url=cfg.URL_RAW_REPO,
                                        ignora_frequenza=True, massimo=2)
-        voci = instagram.assembla(None, schede, corsi_ig)
+        voci = instagram.assembla(None, schede, corsi_ig, getattr(cfg, "IG_LOGHI", None))
         didascalia = instagram.componi_didascalia(
             cfg.IG_INTESTAZIONE.format(settimana=wl["settimana"], anno=wl["anno"]),
             [a.get("titolo_it") or a["titolo"] for a in articoli], corsi_ig,
