@@ -1062,17 +1062,26 @@ def prossimi_slot_corsi(n):
 
 
 def pubblica_instagram(articoli, immagini, wl, dry_run=False):
-    """Carosello Instagram: schede degli articoli e locandina del corso POCUS (ogni settimana,
-    a prescindere dalla frequenza di Telegram e mail). Mai bloccante."""
+    """Instagram, mai bloccante: un carosello con le schede essenziali degli articoli e la
+    locandina del corso POCUS (ogni settimana, a prescindere dalla frequenza di Telegram e
+    mail), e il Reel con le stesse diapositive."""
     try:
+        if not getattr(cfg, "IG_ABILITATO", True):
+            return None
+        if not dry_run and not instagram.configurato(cfg):
+            log.info("Instagram: non configurato (IG_USER_ID / FB_PAGE_ID / IG_PAGE_TOKEN) - salto")
+            return None
+        schede, parole = instagram.genera_schede(articoli, wl, cfg,
+                                                 os.path.join(cfg.IG_DIR, "schede"))
+        schede = schede or immagini        # ripiego: le schede della mail
         corsi_ig = avvisi.carica_corsi("pocus", base_url=cfg.URL_RAW_REPO,
                                        ignora_frequenza=True, massimo=2)
-        voci = instagram.assembla(None, immagini, corsi_ig)
+        voci = instagram.assembla(None, schede, corsi_ig)
         didascalia = instagram.componi_didascalia(
             cfg.IG_INTESTAZIONE.format(settimana=wl["settimana"], anno=wl["anno"]),
             [a.get("titolo_it") or a["titolo"] for a in articoli], corsi_ig,
             cfg.IG_CHIUSURA, cfg.IG_HASHTAG, data_leggibile=avvisi.data_leggibile)
-        return instagram.pubblica(voci, didascalia, cfg, dry_run=dry_run)
+        return instagram.pubblica(voci, didascalia, cfg, dry_run=dry_run, parole=parole)
     except Exception as e:
         log.error(f"Instagram non pubblicato: {e}")
         return None
