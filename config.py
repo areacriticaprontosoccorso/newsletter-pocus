@@ -85,6 +85,16 @@ dell'applicazione clinica.
 #POCUS #EcografiaClinica #MedicinaDUrgenza #ProntoSoccorso #EBM"""
 
 # Intestazione del post. {settimana}, {anno} e {n} vengono sostituiti.
+# Instagram: un carosello a ogni uscita (schede degli articoli e locandina del corso POCUS).
+# Attivo solo con IG_USER_ID (ID dell'account Instagram Business collegato alla Pagina) e con
+# FB_PAGE_ID / FB_PAGE_TOKEN; senza, non fa nulla. IG_ABILITATO=0 lo spegne.
+IG_ABILITATO    = os.environ.get("IG_ABILITATO", "1").strip().lower() not in ("0", "false", "no")
+IG_USER_ID      = os.environ.get("IG_USER_ID", "").strip()
+IG_DIR          = "instagram"
+IG_INTESTAZIONE = "POCUS Weekly Digest — Settimana {settimana}/{anno}\nGli articoli più rilevanti per l'ecografia clinica in Pronto Soccorso e Area Critica."
+IG_CHIUSURA     = "Sintesi generate con supporto di intelligenza artificiale: verifica sempre la fonte originale. Iscrizione alla newsletter dal link in bio."
+IG_HASHTAG      = "#POCUS #EcografiaClinica #MedicinaDUrgenza #ProntoSoccorso #EBM #FOAMed"
+
 FB_INTESTAZIONE = """POCUS Weekly Digest — Settimana {settimana}/{anno}
 
 I {n} articoli più rilevanti per l'ecografia clinica in Pronto Soccorso e Area

@@ -28,6 +28,7 @@ from datetime import datetime, timedelta, timezone, time as dt_time
 
 import config as cfg
 import corsi as avvisi
+import instagram
 from pocus_search import cerca_articoli_pubmed, potenzialmente_pocus
 
 DESTINATARI_FISSI = [
@@ -1060,6 +1061,23 @@ def prossimi_slot_corsi(n):
     return slot
 
 
+def pubblica_instagram(articoli, immagini, wl, dry_run=False):
+    """Carosello Instagram: schede degli articoli e locandina del corso POCUS (ogni settimana,
+    a prescindere dalla frequenza di Telegram e mail). Mai bloccante."""
+    try:
+        corsi_ig = avvisi.carica_corsi("pocus", base_url=cfg.URL_RAW_REPO,
+                                       ignora_frequenza=True, massimo=2)
+        voci = instagram.assembla(None, immagini, corsi_ig)
+        didascalia = instagram.componi_didascalia(
+            cfg.IG_INTESTAZIONE.format(settimana=wl["settimana"], anno=wl["anno"]),
+            [a.get("titolo_it") or a["titolo"] for a in articoli], corsi_ig,
+            cfg.IG_CHIUSURA, cfg.IG_HASHTAG, data_leggibile=avvisi.data_leggibile)
+        return instagram.pubblica(voci, didascalia, cfg, dry_run=dry_run)
+    except Exception as e:
+        log.error(f"Instagram non pubblicato: {e}")
+        return None
+
+
 def pubblica_facebook_corsi(corsi):
     """Un post programmato per corso, uno per giorno feriale. Mai bloccante."""
     if not corsi or not cfg.FB_ABILITATO or not (cfg.FB_PAGE_ID and cfg.FB_PAGE_TOKEN):
@@ -1549,6 +1567,7 @@ def main():
             log.info(f"      badge: {a.get('tipo') or 'nessuno'}")
             log.info(f"      rilevanza: {(a.get('rilevanza') or '')[:160]}")
             log.info(f"      limite: {(a.get('limite') or '')[:160]}")
+        pubblica_instagram(selezionati, immagini, wl, dry_run=True)
         log.info("=== OK (dry run) ===")
         return True
 
@@ -1565,6 +1584,8 @@ def main():
         pubblica_facebook_corsi(corsi)
     except Exception as e:
         log.error(f"Post Facebook dei corsi non programmati: {e}")
+    if not cfg.SOLO_FACEBOOK:
+        pubblica_instagram(selezionati, immagini, wl)
 
     log.info("=== Email: OK ===" if ok_email else "=== Email: FALLITO ===")
     log.info("=== Telegram: OK ===" if ok_telegram

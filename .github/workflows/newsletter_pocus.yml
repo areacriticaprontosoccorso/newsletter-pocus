@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'corsi.py'
+      - 'instagram.py'
       - 'corsi.json'
       - 'corsi.esempio.json'
       - 'newsletter_pocus.py'
@@ -39,6 +40,8 @@ env:
   SOLO_FACEBOOK: ${{ inputs.solo_facebook && '1' || '' }}
   FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
   FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+  # Instagram (carosello): senza questo secret non si pubblica
+  IG_USER_ID: ${{ secrets.IG_USER_ID }}
 
 jobs:
   tests:
@@ -99,6 +102,7 @@ jobs:
             anteprima_digest.html
             newsletter_pocus.log
             immagini/
+            instagram/
             post_facebook.txt
             post_gruppo.txt
           if-no-files-found: warn
