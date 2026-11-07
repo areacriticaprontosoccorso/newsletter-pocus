@@ -42,6 +42,7 @@ env:
   FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
   # Instagram (carosello): senza questo secret non si pubblica
   IG_USER_ID: ${{ secrets.IG_USER_ID }}
+  IG_PAGE_TOKEN: ${{ secrets.IG_PAGE_TOKEN }}
 
 jobs:
   tests:
