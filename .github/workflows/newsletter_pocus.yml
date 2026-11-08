@@ -22,6 +22,10 @@ on:
         description: "Solo Facebook: pubblica i post ma NON invia email ne' Telegram"
         type: boolean
         default: false
+      solo_instagram:
+        description: "Prova Instagram: pubblica SOLO su Instagram (carosello e Reel veri, con [PROVA] in didascalia), niente email, Telegram o Facebook"
+        type: boolean
+        default: false
 
 # Evita doppi invii se cron-job.org spara due trigger ravvicinati:
 # il secondo run attende (non cancella) ma non gira in parallelo.
@@ -38,6 +42,7 @@ env:
   # Vuoto quando il workflow parte da cron-job.org: l'invio resta il default.
   DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
   SOLO_FACEBOOK: ${{ inputs.solo_facebook && '1' || '' }}
+  SOLO_INSTAGRAM: ${{ inputs.solo_instagram && '1' || '' }}
   FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
   FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
   # Instagram (carosello): senza questo secret non si pubblica
