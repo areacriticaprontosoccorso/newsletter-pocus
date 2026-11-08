@@ -107,6 +107,12 @@ IG_REEL_SCHEDE  = True
 IG_MUSICA       = "musica/sottofondo.mp3"
 # Diapositiva con i tre loghi: sempre l'ultima del carosello e dei Reel (se il file esiste).
 IG_LOGHI        = "loghi/chiusura.png"
+# Prima diapositiva del carosello e del Reel: la schermata della pagina di iscrizione (index.html)
+# con titolo di presentazione e invito a iscriversi. IG_COPERTINA_ISCRIZIONE=False la toglie.
+IG_COPERTINA_ISCRIZIONE = True
+IG_COPERTINA_TITOLO = "POCUS Weekly Digest"
+IG_COPERTINA_SOTTOTITOLO = "La newsletter settimanale sull'ecografia clinica in emergenza-urgenza"
+IG_COPERTINA_INVITO = "Iscriviti alla newsletter"
 IG_HASHTAG      = "#POCUS #EcografiaClinica #MedicinaDUrgenza #ProntoSoccorso #EBM #FOAMed"
 
 FB_INTESTAZIONE = """POCUS Weekly Digest — Settimana {settimana}/{anno}
