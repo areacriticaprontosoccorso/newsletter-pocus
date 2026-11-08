@@ -326,6 +326,10 @@ LOGO_URL        = LOGHI[0]["url"]   # compatibilita'
 # Base pubblica dei file del repo (locandine dei corsi): https://.../main/<percorso>
 URL_RAW_REPO    = "https://raw.githubusercontent.com/areacriticaprontosoccorso/newsletter-pocus/main/"
 NEWSLETTER_PAGE_URL = "https://areacriticaprontosoccorso.github.io/newsletter-pocus/"
+# Reel anche su Facebook: lo stesso video di Instagram, pubblicato sulla Pagina (FB_PAGE_ID / FB_PAGE_TOKEN).
+# Dove la didascalia di Instagram dice «dal link in bio», su Facebook va l'indirizzo vero (qui i link si cliccano).
+FB_REEL = True
+FB_REEL_INVITO = "Iscriviti alla newsletter: " + NEWSLETTER_PAGE_URL
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PROMPT CLAUDE

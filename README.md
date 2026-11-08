@@ -89,6 +89,8 @@ Il Reel si carica con l'upload «resumable» dell'API (`rupload.facebook.com`), 
 Non è stato provato con l'API reale (nei test è simulata): se il primo Reel non esce, nel log cerca
 «Instagram: Reel non pubblicato».
 
+**Reel anche su Facebook.** Il Reel delle schede esce anche sulla Pagina Facebook, subito dopo quello di Instagram, con `FB_PAGE_ID` e `FB_PAGE_TOKEN` (il token dei post: deve avere `pages_manage_posts`). Nella descrizione, dove Instagram dice «dal link in bio», va l'indirizzo vero della pagina di iscrizione (`FB_REEL_INVITO`: su Facebook i link si cliccano). `FB_REEL = False` in `config.py` lo spegne. Esce insieme a Instagram, quindi non con `solo_facebook` né con `solo_instagram` (la prova solo Instagram non tocca Facebook); in `dry_run` salva la descrizione in `instagram/descrizione-reel-facebook-schede.txt`. Il codice è `pubblica_reel_facebook` in `instagram.py`. Non provato con l'API reale: se il Reel non esce, nel log cerca «Facebook: Reel non pubblicato».
+
 **Prova dell'invio su Instagram.** Per provare solo Instagram, senza mail, Telegram o Facebook: Actions → il workflow → *Run workflow* → spunta **solo_instagram** (e lascia spenti gli altri). Il run fa la selezione e la sintesi come una corsa vera, poi pubblica davvero su Instagram il carosello e il Reel, con «[PROVA - da cancellare]» in testa alla didascalia: i post vanno cancellati a mano dall'app. Serve che `IG_USER_ID`, `IG_PAGE_TOKEN` e `FB_PAGE_ID` siano nei secret. Il run risulta riuscito se il carosello è uscito; se il Reel non esce, nel log compare «Instagram: Reel non pubblicato». Variabile: `SOLO_INSTAGRAM`.
 
 Serve un account Instagram **Business o Creator collegato alla Pagina Facebook**, e tre secret del repo:
