@@ -26,6 +26,11 @@ DRY_RUN_FILE = "anteprima_digest.html"
 # Modalità solo Facebook: esegue la pipeline e pubblica i post programmati, ma
 # NON invia né email né Telegram. Ha effetto solo se DRY_RUN non è attivo.
 SOLO_FACEBOOK = os.environ.get("SOLO_FACEBOOK", "").strip().lower() in ("1", "true", "yes", "si")
+# Prova dell'invio su Instagram: stessa selezione e sintesi di una corsa vera, ma pubblica SOLO su
+# Instagram (carosello e Reel veri, con "[PROVA]" in testa alla didascalia): niente mail, Telegram
+# o Facebook. Attivazione: SOLO_INSTAGRAM=1. Ha effetto solo se DRY_RUN non e' attivo.
+SOLO_INSTAGRAM = os.environ.get("SOLO_INSTAGRAM", "").strip().lower() in ("1", "true", "yes", "si")
+IG_PREFISSO_PROVA = "[PROVA - da cancellare] "
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -583,7 +588,7 @@ def valida_config():
     if not ANTHROPIC_API_KEY: mancanti.append("ANTHROPIC_API_KEY")
     # In prova a vuoto non si invia nulla: le credenziali SMTP non servono,
     # così la prova gira anche in locale con la sola chiave Anthropic.
-    if not DRY_RUN and not SOLO_FACEBOOK:
+    if not DRY_RUN and not SOLO_FACEBOOK and not SOLO_INSTAGRAM:
         if not GMAIL_USER:         mancanti.append("GMAIL_USER_POCUS")
         if not GMAIL_APP_PASSWORD: mancanti.append("GMAIL_APP_PASSWORD")
     if mancanti:
