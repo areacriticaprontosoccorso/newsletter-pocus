@@ -87,7 +87,7 @@ basso e con dissolvenza finale. Va scelta una traccia senza diritti d'autore e c
 l'uso commerciale. `IG_REEL_SCHEDE = False` in `config.py` spegne il Reel.
 Il Reel si carica con l'upload «resumable» dell'API (`rupload.facebook.com`), senza indirizzi pubblici.
 Non è stato provato con l'API reale (nei test è simulata): se il primo Reel non esce, nel log cerca
-«Instagram: Reel non pubblicato».
+«Instagram: Reel non pubblicato». Se Instagram non riesce a elaborare il video (`ProcessingFailedError`), il Reel si riprova una volta con un contenitore nuovo dopo 30 s; la pubblicazione non si ripete mai, quindi niente doppioni. Il log dice in che fase è fallito (creazione, caricamento, elaborazione, pubblicazione).
 
 **Reel anche su Facebook.** Il Reel delle schede esce anche sulla Pagina Facebook, subito dopo quello di Instagram, con `FB_PAGE_ID` e `FB_PAGE_TOKEN` (il token dei post: deve avere `pages_manage_posts`). Nella descrizione, dove Instagram dice «dal link in bio», va l'indirizzo vero della pagina di iscrizione (`FB_REEL_INVITO`: su Facebook i link si cliccano). `FB_REEL = False` in `config.py` lo spegne. Esce insieme a Instagram, quindi non con `solo_facebook` né con `solo_instagram` (la prova solo Instagram non tocca Facebook); in `dry_run` salva la descrizione in `instagram/descrizione-reel-facebook-schede.txt`. Il codice è `pubblica_reel_facebook` in `instagram.py`. Non provato con l'API reale: se il Reel non esce, nel log cerca «Facebook: Reel non pubblicato».
 
