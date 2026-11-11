@@ -27,10 +27,10 @@ DRY_RUN_FILE = "anteprima_digest.html"
 # NON invia né email né Telegram. Ha effetto solo se DRY_RUN non è attivo.
 SOLO_FACEBOOK = os.environ.get("SOLO_FACEBOOK", "").strip().lower() in ("1", "true", "yes", "si")
 # Prova dell'invio su Instagram: stessa selezione e sintesi di una corsa vera, ma pubblica SOLO su
-# Instagram (carosello e Reel veri, con "[PROVA]" in testa alla didascalia): niente mail, Telegram
+# Instagram (carosello e Reel veri, didascalia normale): niente mail, Telegram
 # o Facebook. Attivazione: SOLO_INSTAGRAM=1. Ha effetto solo se DRY_RUN non e' attivo.
 SOLO_INSTAGRAM = os.environ.get("SOLO_INSTAGRAM", "").strip().lower() in ("1", "true", "yes", "si")
-IG_PREFISSO_PROVA = "[PROVA - da cancellare] "
+IG_PREFISSO_PROVA = ""      # vuoto: la didascalia e' quella di sempre (serve a recuperare un'uscita mancata)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
