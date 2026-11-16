@@ -75,6 +75,10 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # contents: write serve solo alla strada di riserva dei Reel: se Instagram rifiuta il caricamento
+    # diretto, il video sta pochi minuti come allegato di una release temporanea (poi cancellata).
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -112,6 +116,8 @@ jobs:
         run: echo "NEWSLETTER_INIZIO=$(date -u '+%Y-%m-%d %H:%M:%S,%3N')" >> "$GITHUB_ENV"
 
       - name: Run newsletter
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: python newsletter_pocus.py
 
       # Caricato anche quando lo step precedente fallisce: il log e' proprio
