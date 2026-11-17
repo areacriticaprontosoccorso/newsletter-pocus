@@ -1061,6 +1061,34 @@ def prossimi_slot_corsi(n):
     return slot
 
 
+def salva_archivio(wl, pubblicati):
+    """Gli articoli scelti (con sintesi) in un JSON per settimana: il workflow lo carica come
+    artifact e ripubblica.py lo usa per rifare solo i Reel falliti, senza nuove chiamate a Claude.
+    Mai bloccante."""
+    if not cfg.ARCHIVIO_ABILITATO:
+        return None
+    try:
+        os.makedirs(cfg.ARCHIVIO_DIR, exist_ok=True)
+        nome = cfg.ARCHIVIO_FILE.format(settimana=str(wl["settimana"]).zfill(2), anno=wl["anno"])
+        percorso = os.path.join(cfg.ARCHIVIO_DIR, nome)
+        doc = {
+            "settimana": wl["settimana"],
+            "anno": wl["anno"],
+            "wl": wl,
+            "generato_utc": datetime.now(timezone.utc).isoformat(),
+            "modello": cfg.ANTHROPIC_MODEL,
+            "dry_run": cfg.DRY_RUN,
+            "pubblicati": [{k: v for k, v in a.items() if not k.endswith("_dt")} for a in pubblicati],
+        }
+        with open(percorso, "w", encoding="utf-8") as f:
+            json.dump(doc, f, ensure_ascii=False, indent=2, default=str)
+        log.info(f"Archivio scritto in {percorso}")
+        return percorso
+    except Exception as e:
+        log.warning(f"Archivio non scritto: {e}")
+        return None
+
+
 def pubblica_instagram(articoli, immagini, wl, dry_run=False):
     """Instagram, mai bloccante: un carosello con le schede essenziali degli articoli e la
     locandina del corso POCUS (ogni settimana, a prescindere dalla frequenza di Telegram e
@@ -1530,6 +1558,7 @@ def main():
         )
         return False
     selezionati = con_sintesi
+    salva_archivio(wl, selezionati)
 
     log.info("Generazione schede PNG...")
     immagini = genera_immagini(selezionati)

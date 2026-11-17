@@ -7,6 +7,7 @@ on:
       - 'instagram.py'
       - 'avviso.py'
       - 'x_social.py'
+      - 'ripubblica.py'
       - 'corsi.json'
       - 'corsi.esempio.json'
       - 'newsletter_pocus.py'
@@ -28,6 +29,18 @@ on:
         description: "Solo Instagram: pubblica SOLO su Instagram (carosello e Reel veri, didascalia normale; serve anche a recuperare un'uscita mancata), niente email, Telegram o Facebook"
         type: boolean
         default: false
+      ripubblica_reel:
+        description: "Ripubblica SOLO i Reel falliti dell'ultima corsa di questa settimana (niente mail, Telegram, carosello, nessuna chiamata a Claude)"
+        type: boolean
+        default: false
+      ripubblica_cosa:
+        description: "Cosa ripubblicare (con ripubblica_reel): ig_schede, fb_schede, x, ig_podcast, fb_podcast, carosello"
+        type: string
+        default: "ig_schede"
+      run_id:
+        description: "Facoltativo, con ripubblica_reel: numero della corsa da ripubblicare (dall'indirizzo della pagina del run)"
+        type: string
+        default: ""
 
 # Evita doppi invii se cron-job.org spara due trigger ravvicinati:
 # il secondo run attende (non cancella) ma non gira in parallelo.
@@ -45,6 +58,7 @@ env:
   DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
   SOLO_FACEBOOK: ${{ inputs.solo_facebook && '1' || '' }}
   SOLO_INSTAGRAM: ${{ inputs.solo_instagram && '1' || '' }}
+  RIPUBBLICA: ${{ inputs.ripubblica_reel && '1' || '' }}
   FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
   FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
   # Instagram (carosello): senza questo secret non si pubblica
@@ -74,11 +88,13 @@ jobs:
   send-newsletter:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     # contents: write serve solo alla strada di riserva dei Reel: se Instagram rifiuta il caricamento
     # diretto, il video sta pochi minuti come allegato di una release temporanea (poi cancellata).
+    # actions: read serve a ripubblica.py per scaricare l'artifact di una corsa precedente.
     permissions:
       contents: write
+      actions: read
 
     steps:
       - name: Checkout repository
@@ -116,9 +132,20 @@ jobs:
         run: echo "NEWSLETTER_INIZIO=$(date -u '+%Y-%m-%d %H:%M:%S,%3N')" >> "$GITHUB_ENV"
 
       - name: Run newsletter
+        if: env.RIPUBBLICA != '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: python newsletter_pocus.py
+
+      # Solo con ripubblica_reel: rifà e ripubblica i Reel indicati di una corsa gia' fatta, con gli
+      # articoli (e il podcast) di quella corsa presi dall'artifact. Niente mail ne' Telegram.
+      - name: Ripubblica i Reel
+        if: env.RIPUBBLICA == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+          RIPUBBLICA_COSA: ${{ inputs.ripubblica_cosa }}
+        run: python ripubblica.py
 
       # Caricato anche quando lo step precedente fallisce: il log e' proprio
       # cio' che serve quando qualcosa e' andato storto.
@@ -134,6 +161,7 @@ jobs:
             instagram/
             post_facebook.txt
             post_gruppo.txt
+            archivio/
           if-no-files-found: warn
           retention-days: 30
 
