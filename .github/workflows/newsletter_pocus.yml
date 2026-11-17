@@ -69,6 +69,10 @@ env:
   X_API_SECRET: ${{ secrets.X_API_SECRET }}
   X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
   X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+  # YouTube: Reel come Shorts; senza questi secret YouTube viene saltato
+  YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+  YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+  YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
 
 jobs:
   tests:
