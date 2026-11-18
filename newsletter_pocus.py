@@ -34,6 +34,7 @@ from datetime import datetime, timedelta, timezone, time as dt_time
 import config as cfg
 import corsi as avvisi
 import instagram
+import telegram_podcast
 from pocus_search import cerca_articoli_pubmed, potenzialmente_pocus
 
 DESTINATARI_FISSI = [
@@ -1302,15 +1303,17 @@ def genera_podcast(articoli, wl):
 def allegato_podcast(podcast, altri_mb=0.0):
     """Il file del podcast da allegare alla mail: il primo di cfg.PODCAST_MAIL_ALLEGATI (prima il
     video, poi l'MP3) che sta entro cfg.MAIL_MAX_MB e che, con gli altri allegati (le schede PNG,
-    `altri_mb`), resta entro cfg.MAIL_TOTALE_MAX_MB. None se non ce n'e'."""
+    `altri_mb`), resta entro cfg.MAIL_TOTALE_MAX_MB. Col video le schede non si allegano
+    (cfg.MAIL_SCHEDE_NEL_VIDEO), quindi non contano. None se non ce n'e'."""
     for tipo in cfg.PODCAST_MAIL_ALLEGATI if podcast else []:
         p = podcast.get(tipo)
         if not p:
             continue
         mb = os.path.getsize(p) / 1e6
-        if mb <= cfg.MAIL_MAX_MB and mb + altri_mb <= cfg.MAIL_TOTALE_MAX_MB:
+        altri = 0.0 if tipo == "mp4" and cfg.MAIL_SCHEDE_NEL_VIDEO else altri_mb   # il video sostituisce le schede
+        if mb <= cfg.MAIL_MAX_MB and mb + altri <= cfg.MAIL_TOTALE_MAX_MB:
             return p
-        log.warning(f"Podcast {tipo} non allegabile: {mb:.1f} MB (+ {altri_mb:.1f} MB di schede), "
+        log.warning(f"Podcast {tipo} non allegabile: {mb:.1f} MB (+ {altri:.1f} MB di schede), "
                     f"massimo {cfg.MAIL_MAX_MB} MB per il podcast e {cfg.MAIL_TOTALE_MAX_MB} in tutto")
     return None
 
@@ -1603,6 +1606,24 @@ def build_telegram_footer():
     )
 
 
+def invia_podcast_telegram(podcast, wl, n_articoli):
+    """Il podcast anche sul canale Telegram, dopo i messaggi della newsletter (telegram_podcast.py).
+    Mai bloccante. message_id o None."""
+    try:
+        if not podcast or not getattr(cfg, "TELEGRAM_PODCAST", True):
+            return None
+        articoli = "Un articolo" if n_articoli == 1 else f"{n_articoli} articoli"
+        testo = cfg.TELEGRAM_PODCAST_TESTO.format(settimana=wl["settimana"], anno=wl["anno"], articoli=articoli)
+        credito = getattr(cfg, "PODCAST_MUSICA_CREDITO", "")
+        if credito and os.path.exists(getattr(cfg, "PODCAST_MUSICA", "") or ""):
+            testo += f"\n<i>{esc(credito)}</i>"
+        return telegram_podcast.invia_podcast(podcast, testo,
+                                              titolo=f"{cfg.PODCAST_TITOLO} {wl['settimana']}/{wl['anno']}")
+    except Exception as e:
+        log.error(f"Telegram: podcast non inviato ({e})")
+        return None
+
+
 def invia_telegram(articoli, corsi=None):
     """Invia la newsletter completa su Telegram come serie di messaggi."""
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -1707,6 +1728,9 @@ def main():
     podcast = None if (cfg.SOLO_INSTAGRAM or cfg.SOLO_FACEBOOK) else genera_podcast(selezionati, wl)
     schede_mb = sum(os.path.getsize(p) for p in immagini if os.path.exists(p)) / 1e6
     media = allegato_podcast(podcast, altri_mb=schede_mb)
+    # Mail piu' leggera: col video del podcast le schede PNG non si allegano (scorrono nel video);
+    # con l'MP3, o senza podcast, si allegano come sempre.
+    allegati_mail = [] if (media or "").endswith(".mp4") and cfg.MAIL_SCHEDE_NEL_VIDEO else immagini
     html_body = build_html(selezionati, corsi, podcast_allegato=media)
     oggetto = f"POCUS Weekly Digest — Settimana {wl['settimana']}/{wl['anno']}"
 
@@ -1759,7 +1783,7 @@ def main():
         if not media:
             log.error("Solo podcast: podcast non generato (vedi le righe 'Podcast' e 'Gemini')")
             return False
-        ok = invia_email(f"[Prova podcast] {oggetto}", html_body, destinatari, allegati=immagini, media=media)
+        ok = invia_email(f"[Prova podcast] {oggetto}", html_body, destinatari, allegati=allegati_mail, media=media)
         log.info("=== Solo podcast: mail di prova inviata ===" if ok else
                  "=== Solo podcast: mail di prova NON inviata ===")
         return ok
@@ -1775,12 +1799,14 @@ def main():
         log.warning("=== MODALITA' SOLO FACEBOOK: nessuna email, nessun Telegram ===")
         ok_email = True
     else:
-        ok_email = invia_email(oggetto, html_body, destinatari, allegati=immagini, media=media)
+        ok_email = invia_email(oggetto, html_body, destinatari, allegati=allegati_mail, media=media)
         if not ok_email and media:
             # Meglio la newsletter senza podcast che nessuna newsletter (allegato troppo pesante, ecc.).
             log.warning("Invio con il podcast fallito: riprovo senza allegato")
             ok_email = invia_email(oggetto, build_html(selezionati, corsi), destinatari, allegati=immagini)
     ok_telegram = True if cfg.SOLO_FACEBOOK else invia_telegram(selezionati, corsi)
+    if not cfg.SOLO_FACEBOOK:
+        invia_podcast_telegram(podcast, wl, len(selezionati))
 
     # Facebook per ultimo: un errore qui non deve invalidare invii gia' riusciti.
     pubblica_facebook(immagini, selezionati, wl)

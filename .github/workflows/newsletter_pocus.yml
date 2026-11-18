@@ -9,6 +9,7 @@ on:
       - 'x_social.py'
       - 'ripubblica.py'
       - 'podcast.py'
+      - 'telegram_podcast.py'
       - 'youtube.py'
       - 'corsi.json'
       - 'corsi.esempio.json'

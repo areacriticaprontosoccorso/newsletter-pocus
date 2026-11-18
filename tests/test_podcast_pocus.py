@@ -96,9 +96,12 @@ class Allegato(unittest.TestCase):
             self.assertEqual(nl.allegato_podcast(podcast), mp4)
             with mock.patch.object(cfg, "MAIL_MAX_MB", 1):            # video troppo grande: l'MP3
                 self.assertEqual(nl.allegato_podcast(podcast), mp3)
-            with mock.patch.object(cfg, "MAIL_TOTALE_MAX_MB", 2.2):   # schede + video oltre il totale
+            # col video le schede non si allegano: contano solo per l'MP3
+            with mock.patch.object(cfg, "MAIL_TOTALE_MAX_MB", 2.2):
+                self.assertEqual(nl.allegato_podcast(podcast, altri_mb=1.0), mp4)
+            with mock.patch.object(cfg, "MAIL_SCHEDE_NEL_VIDEO", False), mock.patch.object(cfg, "MAIL_TOTALE_MAX_MB", 2.2):
                 self.assertEqual(nl.allegato_podcast(podcast, altri_mb=1.0), mp3)
-            with mock.patch.object(cfg, "MAIL_TOTALE_MAX_MB", 1):
+            with mock.patch.object(cfg, "MAIL_TOTALE_MAX_MB", 1), mock.patch.object(cfg, "MAIL_MAX_MB", 1):
                 self.assertIsNone(nl.allegato_podcast(podcast, altri_mb=1.0))
             self.assertIsNone(nl.allegato_podcast(None))
 
@@ -158,12 +161,13 @@ class Corsa(unittest.TestCase):
             p(nl, "filtra_top_articoli", return_value=[art])
             p(nl, "sintetizza_articoli", side_effect=lambda x: x)
             p(nl, "salva_archivio")
-            p(nl, "genera_immagini", return_value=[])
+            p(nl, "genera_immagini", return_value=["scheda-01.png"])
             p(nl.avvisi, "carica_corsi", return_value=[])
             p(nl, "genera_podcast", return_value={"mp4": "p.mp4"} if media else None)
             p(nl, "allegato_podcast", return_value=media)
             mail = p(nl, "invia_email", side_effect=[mail_ok, True])
             tg = p(nl, "invia_telegram", return_value=True)
+            self.tg_podcast = p(nl, "invia_podcast_telegram")
             fb = p(nl, "pubblica_facebook")
             p(nl, "pubblica_facebook_corsi")
             ig = p(nl, "pubblica_instagram")
@@ -182,8 +186,15 @@ class Corsa(unittest.TestCase):
         self.assertEqual(mail.call_args[0][2], ["iscritto@example.org"])
         self.assertEqual(mail.call_args[1]["media"], "podcast/p.mp4")
         self.assertIn(">Podcast<", mail.call_args[0][1])
+        self.assertEqual(mail.call_args[1]["allegati"], [])         # col video niente schede PNG
         tg.assert_called_once()
+        self.tg_podcast.assert_called_once()
+        self.assertEqual(self.tg_podcast.call_args[0][0], {"mp4": "p.mp4"})
         ig.assert_called_once()
+
+    def test_con_l_mp3_le_schede_restano_allegate(self):
+        _, _, mail, _, _, _ = self._corsa("podcast/p.mp3")
+        self.assertEqual(mail.call_args[1]["allegati"], ["scheda-01.png"])
 
     def test_se_la_mail_col_podcast_fallisce_riparte_senza(self):
         ok, _, mail, _, _, _ = self._corsa("podcast/p.mp4", mail_ok=False)
@@ -191,12 +202,14 @@ class Corsa(unittest.TestCase):
         self.assertEqual(mail.call_count, 2)
         self.assertNotIn("media", mail.call_args_list[1][1])
         self.assertNotIn(">Podcast<", mail.call_args_list[1][0][1])
+        self.assertEqual(mail.call_args_list[1][1]["allegati"], ["scheda-01.png"])   # senza video, le schede
 
     def test_solo_podcast_mail_solo_a_te_niente_altro(self):
         ok, iscritti, mail, tg, ig, fb = self._corsa("podcast/p.mp4", solo=True)
         self.assertTrue(ok)
         iscritti.assert_not_called()
         tg.assert_not_called()
+        self.tg_podcast.assert_not_called()
         ig.assert_not_called()
         fb.assert_not_called()
         oggetto, _, destinatari = mail.call_args[0]
@@ -212,6 +225,28 @@ class Corsa(unittest.TestCase):
         self.assertFalse(ok)
         mail.assert_not_called()
         tg.assert_not_called()
+
+
+class TelegramPodcast(unittest.TestCase):
+    def test_didascalia_e_titolo(self):
+        with mock.patch.object(nl.telegram_podcast, "invia_podcast", return_value=5) as inv:
+            self.assertEqual(nl.invia_podcast_telegram({"mp4": "p.mp4"}, WL, 1), 5)
+        testo, titolo = inv.call_args[0][1], inv.call_args[1]["titolo"]
+        self.assertIn("POCUS Weekly Digest", testo)
+        self.assertIn("47/2026", testo)
+        self.assertIn("Un articolo di ecografia", testo)
+        self.assertEqual(titolo, "POCUS Weekly Digest 47/2026")
+
+    def test_spento_o_senza_podcast(self):
+        with mock.patch.object(nl.telegram_podcast, "invia_podcast") as inv:
+            self.assertIsNone(nl.invia_podcast_telegram(None, WL, 3))
+            with mock.patch.object(cfg, "TELEGRAM_PODCAST", False):
+                self.assertIsNone(nl.invia_podcast_telegram({"mp4": "p.mp4"}, WL, 3))
+        inv.assert_not_called()
+
+    def test_voce_femminile(self):
+        self.assertEqual(cfg.PODCAST_GEMINI_VOCE, "Kore")
+        self.assertIn("una dottoressa", cfg.PODCAST_GEMINI_STILE)
 
 
 class ReelPodcast(unittest.TestCase):

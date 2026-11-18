@@ -662,6 +662,15 @@ MAIL_MAX_MB           = 15
 # In POCUS la mail porta anche le schede PNG: podcast + schede entro questo totale (Gmail: 25 MB
 # compresa la codifica, che aggiunge circa un terzo).
 MAIL_TOTALE_MAX_MB    = 17
+# Col video del podcast in allegato le schede PNG non si allegano (scorrono gia' nel video).
+MAIL_SCHEDE_NEL_VIDEO = True
+
+# Il podcast anche sul canale Telegram, dopo i messaggi della newsletter: il video (o l'MP3 se il
+# video supera i 49 MB dei bot). TELEGRAM_PODCAST = False lo spegne. {articoli} = "3 articoli".
+TELEGRAM_PODCAST = True
+TELEGRAM_PODCAST_TESTO = ("🎧 <b>POCUS Weekly Digest</b> — il podcast della settimana {settimana}/{anno}\n"
+                          "{articoli} di ecografia clinica in emergenza-urgenza, in pochi minuti.\n"
+                          "<i>Sintesi generate con l'intelligenza artificiale: verificate sempre sulle fonti.</i>")
 # Il workflow passa l'esito del passo che installa torch/chatterbox: se è fallito
 # non si perde tempo a tentare. In locale (variabile assente) si tenta.
 PODCAST_DIPENDENZE_OK = os.environ.get("PODCAST_DIPENDENZE", "success").strip() in ("success", "")
@@ -677,7 +686,7 @@ PODCAST_RIPIEGO_CHATTERBOX = False     # in POCUS il ripiego locale non e' insta
 # Modelli provati in ordine: se uno non esiste (404) si passa al successivo.
 PODCAST_GEMINI_MODELLI = ["gemini-3.8-flash-tts", "gemini-3.1-flash-tts-preview",
                           "gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts"]
-PODCAST_GEMINI_VOCE    = "Charon"     # voce predefinita di Gemini (informativa, maschile)
+PODCAST_GEMINI_VOCE    = "Kore"       # voce femminile di Gemini (decisa, chiara); EM e NIV usano Charon
 # Parole per chiamata: nelle letture oltre il minuto il modello cambia timbro verso la
 # fine, quindi il podcast si genera in blocchi di sezioni intere (~40 s ciascuno).
 PODCAST_GEMINI_PAROLE_BLOCCO = 100
@@ -687,7 +696,7 @@ PODCAST_GEMINI_UNIFORMA = True
 PODCAST_GEMINI_EQ_MAX_DB = 4
 # Note di regia: vanno nella sezione "NOTE DI REGIA" del prompt, separate dalla
 # "TRASCRIZIONE" (se scritte come frase prima del testo, il modello le legge ad alta voce).
-PODCAST_GEMINI_STILE = ("Leggi in italiano, come un medico d'urgenza che presenta ai colleghi "
+PODCAST_GEMINI_STILE = ("Leggi in italiano, come una dottoressa di medicina d'urgenza che presenta ai colleghi "
                         "la rassegna settimanale della letteratura: tono professionale, caldo "
                         "e naturale, ritmo sostenuto ma ben scandito, senza enfasi. Stessa voce, "
                         "stesso timbro e stesso ritmo dall'inizio alla fine. Breve pausa "
