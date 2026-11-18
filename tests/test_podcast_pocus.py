@@ -48,7 +48,8 @@ class Config(unittest.TestCase):
         import podcast
         self.assertIn("Un articolo,", podcast.intro(1))
         self.assertNotIn("Uno articoli", podcast.intro(1))
-        self.assertIn("Tre articoli,", podcast.intro(3))
+        with mock.patch.object(podcast, "_num_it", return_value="tre"):   # num2words solo col podcast
+            self.assertIn("Tre articoli,", podcast.intro(3))
         self.assertEqual(podcast.limiti_parole(1)[1], round(cfg.PODCAST_PAROLE_MAX / cfg.ARTICOLI_FINALI))
 
 
