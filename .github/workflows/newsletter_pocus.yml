@@ -8,6 +8,8 @@ on:
       - 'avviso.py'
       - 'x_social.py'
       - 'ripubblica.py'
+      - 'podcast.py'
+      - 'youtube.py'
       - 'corsi.json'
       - 'corsi.esempio.json'
       - 'newsletter_pocus.py'
@@ -29,6 +31,10 @@ on:
         description: "Solo Instagram: pubblica SOLO su Instagram (carosello e Reel veri, didascalia normale; serve anche a recuperare un'uscita mancata), niente email, Telegram o Facebook"
         type: boolean
         default: false
+      solo_podcast:
+        description: "Solo podcast: genera il podcast e lo manda SOLO a te (AVVISI_EMAIL, o la casella della newsletter) con la mail come la vedrebbero gli iscritti; niente iscritti, Telegram o social"
+        type: boolean
+        default: false
       ripubblica_reel:
         description: "Ripubblica SOLO i Reel falliti dell'ultima corsa di questa settimana (niente mail, Telegram, carosello, nessuna chiamata a Claude)"
         type: boolean
@@ -36,7 +42,7 @@ on:
       ripubblica_cosa:
         description: "Cosa ripubblicare (con ripubblica_reel): ig_schede, fb_schede, x, ig_podcast, fb_podcast, carosello"
         type: string
-        default: "ig_schede"
+        default: "ig_schede,ig_podcast"
       run_id:
         description: "Facoltativo, con ripubblica_reel: numero della corsa da ripubblicare (dall'indirizzo della pagina del run)"
         type: string
@@ -59,6 +65,10 @@ env:
   SOLO_FACEBOOK: ${{ inputs.solo_facebook && '1' || '' }}
   SOLO_INSTAGRAM: ${{ inputs.solo_instagram && '1' || '' }}
   RIPUBBLICA: ${{ inputs.ripubblica_reel && '1' || '' }}
+  SOLO_PODCAST: ${{ inputs.solo_podcast && '1' || '' }}
+  AVVISI_EMAIL: ${{ secrets.AVVISI_EMAIL }}
+  # Podcast allegato alla mail: voce Gemini. Senza la chiave la mail parte senza podcast.
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
   FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
   FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
   # Instagram (carosello): senza questo secret non si pubblica
@@ -92,7 +102,8 @@ jobs:
   send-newsletter:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Newsletter pochi minuti; il podcast (voce Gemini, verifica Whisper, video) fino a 25.
+    timeout-minutes: 50
     # contents: write serve solo alla strada di riserva dei Reel: se Instagram rifiuta il caricamento
     # diretto, il video sta pochi minuti come allegato di una release temporanea (poi cancellata).
     # actions: read serve a ripubblica.py per scaricare l'artifact di una corsa precedente.
@@ -109,8 +120,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Nessuna dipendenza esterna: lo script usa solo la libreria standard
-      # (invio via SMTP con smtplib).
+      # La newsletter usa solo la libreria standard (invio via SMTP con smtplib); Playwright fa le
+      # schede, ffmpeg i Reel, il podcast ha le sue dipendenze (sotto).
 
       - name: Installa Playwright
         run: |
@@ -120,6 +131,24 @@ jobs:
       - name: Installa ffmpeg (Reel per Instagram)
         continue-on-error: true
         run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
+
+      # Podcast: Whisper (verifica della voce e sottotitoli), numeri in lettere, audio. Non
+      # bloccante: se fallisce, la newsletter esce senza podcast. Il modello resta in cache.
+      - name: Cache modelli e pacchetti del podcast
+        if: env.RIPUBBLICA != '1'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/huggingface
+            ~/.cache/pip
+          key: podcast-pocus-v1
+
+      - name: Installa dipendenze podcast
+        id: dipendenze_podcast
+        if: env.RIPUBBLICA != '1'
+        continue-on-error: true
+        timeout-minutes: 10
+        run: pip install faster-whisper==1.2.1 num2words==0.5.14 soundfile librosa==0.11.0
 
       - name: Verifica test offline
         run: python -m unittest discover -s tests -v
@@ -139,6 +168,11 @@ jobs:
         if: env.RIPUBBLICA != '1'
         env:
           GH_TOKEN: ${{ github.token }}
+          # 'success', 'failure' o vuoto (passo saltato): se non e' 'success' il podcast non si tenta
+          PODCAST_DIPENDENZE: ${{ steps.dipendenze_podcast.outcome || 'skipped' }}
+          # niente barre di avanzamento nel log (sarebbero migliaia di righe)
+          TQDM_DISABLE: '1'
+          HF_HUB_DISABLE_PROGRESS_BARS: '1'
         run: python newsletter_pocus.py
 
       # Solo con ripubblica_reel: rifà e ripubblica i Reel indicati di una corsa gia' fatta, con gli
@@ -153,7 +187,7 @@ jobs:
 
       # Caricato anche quando lo step precedente fallisce: il log e' proprio
       # cio' che serve quando qualcosa e' andato storto.
-      - name: Carica anteprima e log
+      - name: Carica anteprima, log e podcast
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -166,13 +200,14 @@ jobs:
             post_facebook.txt
             post_gruppo.txt
             archivio/
+            podcast/
           if-no-files-found: warn
           retention-days: 30
 
       # Email a AVVISI_EMAIL solo se un invio e' fallito o e' uscito incompleto (errori nel log
       # del run). Se va tutto bene non scrive. Mai bloccante. Non parte nelle prove.
       - name: Avvisa per email se qualcosa e' andato storto
-        if: always() && !inputs.dry_run && !inputs.solo_instagram && !inputs.solo_facebook
+        if: always() && !inputs.dry_run && !inputs.solo_instagram && !inputs.solo_facebook && !inputs.solo_podcast
         continue-on-error: true
         env:
           JOB_STATUS: ${{ job.status }}
