@@ -30,6 +30,11 @@ SOLO_FACEBOOK = os.environ.get("SOLO_FACEBOOK", "").strip().lower() in ("1", "tr
 # Instagram (carosello e Reel veri, didascalia normale): niente mail, Telegram
 # o Facebook. Attivazione: SOLO_INSTAGRAM=1. Ha effetto solo se DRY_RUN non e' attivo.
 SOLO_INSTAGRAM = os.environ.get("SOLO_INSTAGRAM", "").strip().lower() in ("1", "true", "yes", "si")
+# Solo podcast: stessa selezione e sintesi di una corsa vera, genera il podcast e lo manda SOLO a
+# AVVISI_EMAIL (o, se manca, alla casella GMAIL_USER), con la mail come la vedrebbero gli iscritti.
+# Niente iscritti, Telegram o social. Attivazione: SOLO_PODCAST=1.
+SOLO_PODCAST = os.environ.get("SOLO_PODCAST", "").strip().lower() in ("1", "true", "yes", "si")
+SOLO_PODCAST_A = os.environ.get("AVVISI_EMAIL", "").strip()
 IG_PREFISSO_PROVA = ""      # vuoto: la didascalia e' quella di sempre (serve a recuperare un'uscita mancata)
 
 
@@ -118,7 +123,9 @@ YT_PRIVACY       = "public"          # 'public', 'unlisted' o 'private'
 YT_CATEGORIA     = "27"              # 27 = Istruzione
 YT_TAGS          = ["POCUS", "ecografia clinica", "ecografia in emergenza", "pronto soccorso", "newsletter", "San Giovanni Bosco"]
 # Titoli (la data si aggiunge da sola): 'schede' = Short con le schede
-YT_TITOLI        = {"schede": "POCUS Weekly Digest · gli articoli della settimana"}
+YT_TITOLI        = {"schede": "POCUS Weekly Digest · gli articoli della settimana",
+                    "podcast": "POCUS Weekly Digest · estratto del podcast",
+                    "completo": "POCUS Weekly Digest · il podcast della settimana"}
 # Token della Pagina usato solo da Instagram: se manca si usa FB_PAGE_TOKEN (che resta dei post Facebook).
 IG_PAGE_TOKEN   = os.environ.get("IG_PAGE_TOKEN", "").strip()
 IG_DIR          = "instagram"
@@ -128,7 +135,7 @@ IG_DIR          = "instagram"
 ARCHIVIO_ABILITATO = True
 ARCHIVIO_DIR       = "archivio"
 ARCHIVIO_FILE      = "digest-s{settimana}-{anno}.json"
-RIPUBBLICA_PREDEFINITE = "ig_schede"
+RIPUBBLICA_PREDEFINITE = "ig_schede,ig_podcast"
 
 IG_INTESTAZIONE = "POCUS Weekly Digest — Settimana {settimana}/{anno}\nGli articoli più rilevanti per l'ecografia clinica in Pronto Soccorso e Area Critica."
 IG_CHIUSURA     = "Sintesi generate con supporto di intelligenza artificiale: verifica sempre la fonte originale. Iscrizione alla newsletter dal link in bio."
@@ -152,6 +159,11 @@ IG_COPERTINA_TITOLO = "POCUS Weekly Digest"
 IG_COPERTINA_SOTTOTITOLO = "La newsletter settimanale sull'ecografia clinica in emergenza-urgenza"
 IG_COPERTINA_INVITO = "Iscriviti alla newsletter"
 IG_HASHTAG      = "#POCUS #EcografiaClinica #MedicinaDUrgenza #ProntoSoccorso #EBM #FOAMed"
+# Reel con l'estratto del podcast (60-90 s, poi i saluti sui loghi), dopo il carosello e il Reel
+# delle schede. Solo se il podcast di questa corsa e' riuscito. IG_REEL_PODCAST=False lo spegne.
+IG_REEL_PODCAST = True
+IG_PODCAST_INTESTAZIONE = ("POCUS Weekly Digest — il podcast della settimana {settimana}/{anno}\n"
+                           "Un estratto: il podcast completo arriva con la newsletter.")
 
 FB_INTESTAZIONE = """POCUS Weekly Digest — Settimana {settimana}/{anno}
 
@@ -628,6 +640,215 @@ Nei valori testuali NON usare mai virgolette doppie: per citare un nome, un term
 # PATH FILE
 # ═══════════════════════════════════════════════════════════════════════════════
 DIR_BASE = os.path.dirname(os.path.abspath(__file__))
+# ═══════════════════════════════════════════════════════════════════════════════
+# PODCAST SETTIMANALE (podcast.py, lo stesso file di newsletter-ps)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Il podcast (video MP4 con le schede e la voce, o in ripiego l'MP3) si genera prima della mail e
+# parte ALLEGATO alla mail degli iscritti. Mai bloccante: se manca, la mail esce senza.
+# Serve il secret GEMINI_API_KEY. PODCAST=0 (variabile d'ambiente) lo spegne.
+DIR_BASE = os.path.dirname(os.path.abspath(__file__))
+PODCAST_ABILITATO  = os.environ.get("PODCAST", "1").strip().lower() not in ("0", "false", "no")
+PODCAST_DIR        = "podcast"
+PODCAST_ARCHIVIO   = os.path.join(PODCAST_DIR, "digest.json")     # articoli e schede per podcast.py
+PODCAST_ESITO      = os.path.join(PODCAST_DIR, "esito.json")
+# Il podcast si genera dentro la newsletter, prima della mail, e l'MP3 parte allegato.
+# Oltre PODCAST_TIMEOUT_MAIL secondi il processo viene chiuso e la mail esce senza.
+PODCAST_TIMEOUT_MAIL = 25 * 60
+# Cosa allegare alla mail, in ordine: il video (MP4, ~4 MB, audio + schede) e, se
+# l'invio col video fallisce, l'MP3 (~2 MB). Nessuno dei due se gli allegati
+# supererebbero MAIL_MAX_MB (Gmail accetta 25 MB; molte caselle aziendali meno).
+PODCAST_MAIL_ALLEGATI = ["mp4", "mp3"]
+MAIL_MAX_MB           = 15
+# In POCUS la mail porta anche le schede PNG: podcast + schede entro questo totale (Gmail: 25 MB
+# compresa la codifica, che aggiunge circa un terzo).
+MAIL_TOTALE_MAX_MB    = 17
+# Col video del podcast in allegato le schede PNG non si allegano (scorrono gia' nel video).
+MAIL_SCHEDE_NEL_VIDEO = True
+
+# Il podcast anche sul canale Telegram, dopo i messaggi della newsletter: il video (o l'MP3 se il
+# video supera i 49 MB dei bot). TELEGRAM_PODCAST = False lo spegne. {articoli} = "3 articoli".
+TELEGRAM_PODCAST = True
+TELEGRAM_PODCAST_TESTO = ("🎧 <b>POCUS Weekly Digest</b> — il podcast della settimana {settimana}/{anno}\n"
+                          "{articoli} di ecografia clinica in emergenza-urgenza, in pochi minuti.\n"
+                          "<i>Sintesi generate con l'intelligenza artificiale: verificate sempre sulle fonti.</i>")
+# Il workflow passa l'esito del passo che installa torch/chatterbox: se è fallito
+# non si perde tempo a tentare. In locale (variabile assente) si tenta.
+PODCAST_DIPENDENZE_OK = os.environ.get("PODCAST_DIPENDENZE", "success").strip() in ("success", "")
+# Motore della voce: "gemini" (Gemini TTS, API di Google: voci italiane native, serve
+# il secret GEMINI_API_KEY) oppure "chatterbox" (modello locale sul runner, imita
+# podcast_voce.wav; richiede torch e chatterbox nel passo delle dipendenze).
+PODCAST_MOTORE = os.environ.get("PODCAST_MOTORE", "gemini").strip().lower()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+# Se Gemini non risponde (quota, chiave, blocchi) il podcast si rifà con Chatterbox
+# sul runner: stesso copione, nessuna chiamata API in più, ma 20-30 minuti e voce
+# meno italiana. "0" nella variabile di repository PODCAST_RIPIEGO lo disattiva.
+PODCAST_RIPIEGO_CHATTERBOX = False     # in POCUS il ripiego locale non e' installato: senza Gemini niente podcast
+# Modelli provati in ordine: se uno non esiste (404) si passa al successivo.
+PODCAST_GEMINI_MODELLI = ["gemini-3.8-flash-tts", "gemini-3.1-flash-tts-preview",
+                          "gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts"]
+PODCAST_GEMINI_VOCE    = "Kore"       # voce femminile di Gemini (decisa, chiara); EM e NIV usano Charon
+# Parole per chiamata: nelle letture oltre il minuto il modello cambia timbro verso la
+# fine, quindi il podcast si genera in blocchi di sezioni intere (~40 s ciascuno).
+PODCAST_GEMINI_PAROLE_BLOCCO = 100
+# Fra una chiamata e l'altra il timbro cambia un po': lo spettro medio di ogni blocco
+# viene portato su quello del primo (correzione massima in dB) e il volume pareggiato.
+PODCAST_GEMINI_UNIFORMA = True
+PODCAST_GEMINI_EQ_MAX_DB = 4
+# Note di regia: vanno nella sezione "NOTE DI REGIA" del prompt, separate dalla
+# "TRASCRIZIONE" (se scritte come frase prima del testo, il modello le legge ad alta voce).
+PODCAST_GEMINI_STILE = ("Leggi in italiano, come una dottoressa di medicina d'urgenza che presenta ai colleghi "
+                        "la rassegna settimanale della letteratura: tono professionale, caldo "
+                        "e naturale, ritmo sostenuto ma ben scandito, senza enfasi. Stessa voce, "
+                        "stesso timbro e stesso ritmo dall'inizio alla fine. Breve pausa "
+                        "fra un paragrafo e l'altro. Nomi delle riviste e termini inglesi in "
+                        "pronuncia inglese.")
+PODCAST_VOCE_RIF   = "podcast_voce.wav"   # campione di voce (sintetica) da imitare
+
+# Niente "due minuti": POCUS esce con 1-5 articoli e la durata cambia di conseguenza.
+PODCAST_INTRO = ("Benvenuti! Questa è la newsletter settimanale di ecografia clinica "
+                 "della Medicina d'Emergenza-Urgenza dell'ospedale San Giovanni Bosco di Torino. "
+                 "{Articoli} articoli, sola ecografia in emergenza-urgenza. Buon ascolto!")
+# Titolo e tema sulla copertina del video; servizio di corsi.json per le locandine in coda.
+PODCAST_TITOLO = "POCUS Weekly Digest"
+PODCAST_TEMA   = "ecografia clinica in emergenza-urgenza"
+PODCAST_CORSI  = "pocus"
+# Chiusura parlata: avvertenza, (se ci sono corsi in programma) l'invito ai corsi, saluti.
+# L'invito compare anche scritto sulle locandine, che appaiono mentre lo si dice.
+PODCAST_CHIUSURA_AVVISO = ("Sintesi generate con l'intelligenza artificiale: verificate sempre sulle "
+                           "fonti. Le sintesi complete e i link agli articoli sono nella newsletter.")
+PODCAST_CHIUSURA_CORSI = "Sei un medico d'emergenza-urgenza? Partecipa ai nostri corsi!"
+PODCAST_CHIUSURA_SALUTI = "Alla prossima."
+PODCAST_CHIUSURA = PODCAST_CHIUSURA_AVVISO + " " + PODCAST_CHIUSURA_SALUTI      # senza corsi
+
+# Carattere della voce Chatterbox: valori più bassi = intonazione più calma e meno
+# enfatica. 0,35 / 0,3 scelti all'ascolto il 30/10 (prima: 0,5 / 0,5).
+PODCAST_ESAGERAZIONE = 0.35
+PODCAST_CFG          = 0.3
+
+# Durata: se il parlato supera PODCAST_DURATA_MAX secondi si accelera fino a
+# PODCAST_ATEMPO_MAX (oltre, la voce si snatura: si pubblica comunque, con avviso).
+PODCAST_DURATA_MAX = 140   # 2 minuti e 20 secondi, concessi dal 2/11 (sigla e avvertenza comprese)
+PODCAST_ATEMPO_MAX = 1.10
+# Parole del copione per TUTTI gli articoli insieme (intro e chiusura escluse),
+# riferite a un digest di ARTICOLI_FINALI articoli: con meno articoli i limiti
+# scalano in proporzione. Misurato sul run del 30/10: 235 parole + intro = 124 s anche
+# a velocità 1,10, quindi il tetto è sceso a 220 (circa 120 s).
+# In PODCAST_INTRO, {Articoli} diventa il numero in lettere ("Cinque", "Quattro"...).
+# Dal 2/11 il podcast ha apertura, avvertenza e sigla e può durare fino a 2'20".
+PODCAST_PAROLE_MIN = 175
+# Loghi in coda al video, in silenzio: secondi. La voce di chiusura corre sulle locandine dei corsi (POCUS e NIV).
+PODCAST_LOCANDINA_SEC = 5
+# Diapositiva con i tre loghi: sempre l'ultima del video del podcast (PODCAST_LOCANDINA_SEC secondi).
+PODCAST_LOGHI = "loghi/chiusura.png"
+PODCAST_PAROLE_MAX = 210
+# Frase d'apertura scritta da Claude ("Questa settimana: ..."), inserita prima di "Buon ascolto".
+PODCAST_APERTURA_MAX_PAROLE = 16
+# Sottotitoli nel video (testo del copione con i tempi delle parole di Whisper) e sigla.
+PODCAST_SOTTOTITOLI = True
+# Tappeto musicale sotto la voce del podcast (solo se il file esiste), PODCAST_MUSICA_DB LU sotto la voce.
+PODCAST_MUSICA = "musica/podcast.mp3"
+PODCAST_MUSICA_DB = -24
+PODCAST_MUSICA_CREDITO = "Musica: «The Distant Sun» di Scott Buckley (CC BY 4.0, www.scottbuckley.com.au)"   # riga in fondo alla mail
+PODCAST_SIGLA = True
+PODCAST_SIGLA_DB = -6      # loudness della sigla rispetto alla voce (LUFS): resta sotto, senza sparire
+
+# Verifica della voce: ogni frase viene ritrascritta con Whisper e confrontata
+# col testo; sotto soglia si rigenera (fino a PODCAST_TENTATIVI volte, si tiene
+# la migliore).
+PODCAST_SOGLIA_WHISPER = 0.82
+PODCAST_TENTATIVI      = 3
+# Sotto questo punteggio complessivo (o se Gemini legge le note di regia) la voce si scarta:
+# EM passa alla voce di riserva, NIV e POCUS mandano la mail senza podcast (con avviso).
+PODCAST_SOGLIA_MINIMA  = 0.75
+# Minimo per ogni sezione (un articolo): sotto, la voce si scarta anche se la media e' buona.
+PODCAST_SOGLIA_SEZIONE = 0.65
+# Pulizia della voce prima della normalizzazione (filtro passa-alto e riduzione del rumore).
+PODCAST_PULIZIA        = True
+PODCAST_WHISPER_MODELLO = os.environ.get("PODCAST_WHISPER", "small")
+
+# Pronuncia: sostituzioni applicate SOLO al testo dato alla sintesi vocale.
+PODCAST_PRONUNCIA_IT = {
+    "Emergenza-Urgenza": "Emergenza  Urgenza",   # col trattino "Urgenza" si fonde
+    "emergenza-urgenza": "emergenza  urgenza",
+    "EM": "I-em",
+    "POCUS": "Pòcus",
+    "NIV": "Niv",
+    "eFAST": "i-fàst",
+    "FAST": "fàst",
+    "BLUE": "blù",
+    "VExUS": "vèxus",
+    "TAPSE": "tàpse",
+    "PS": "Pronto Soccorso",
+    "OBI": "o-bi-i",
+    "ASL": "a-esse-elle",
+}
+# Parole inglesi brevi dentro una frase italiana: invece di un segmento in voce
+# inglese (che spezzerebbe il ritmo) si usa questa grafia fonetica.
+PODCAST_GRAFIA_FONETICA = {
+    "trial": "tràial",
+    "cluster": "clàster",
+    "stepped-wedge": "stèpd-uèdg",
+    "outcome": "àutcam",
+    "endpoint": "èndpoint",
+    "score": "scòr",
+    "follow-up": "follou-àp",
+    "setting": "sètting",
+    "timing": "tàiming",
+    "point-of-care": "point-of-chèr",
+    "lung ultrasound": "lang ultrasàund",
+    "B-lines": "bi-lains",
+    "sliding": "slàiding",
+}
+
+PODCAST_PROMPT = """Scrivi il copione parlato del podcast settimanale di un Pronto Soccorso sull'ecografia \
+clinica point-of-care (POCUS) in emergenza-urgenza: una sola voce, in italiano, tono tecnico ma \
+colloquiale, per medici d'urgenza. Presenta i \
+{n} articoli qui sotto, nell'ordine dato. Saluto iniziale, avvertenza e congedo li aggiunge \
+il programma: tu scrivi l'APERTURA e i paragrafi degli articoli.
+
+REGOLE
+1. LUNGHEZZA, il vincolo più importante: il podcast dura poco più di due minuti, quindi devi \
+scegliere, non riassumere tutto. Un paragrafo per articolo, da {per_min} a {per_max} \
+parole ciascuno, MAI di più (3 o 4 frasi brevi). Tutti i paragrafi insieme: fra \
+{min_parole} e {max_parole} parole. Conta le parole prima di rispondere.
+2. APERTURA: una sola frase, al massimo {max_apertura} parole, che comincia con \
+"Questa settimana" e annuncia il tema più importante (di solito il primo articolo). \
+Nessun numero.
+3. Apri ogni paragrafo con un connettivo d'ordine e la rivista, per esempio: \
+"Si parte da [[Circulation]], ...", "Secondo studio, su ...", "Terzo, su ...", \
+"Quarto, ancora su ...", "Infine, una metanalisi su ...".
+4. Ogni paragrafo, in quest'ordine: il disegno dello studio in poche parole; UN \
+risultato principale, con il suo confronto ("X% contro Y%", mai un valore isolato); \
+il peso dell'evidenza detto a parole, partendo dal campo "badge" (per esempio "cambia \
+la pratica", "da confermare", "studio esplorativo"), oppure il limite principale. Ometti \
+intervalli di confidenza, \
+valori p, analisi secondarie e dettagli di metodo. Scrivi i termini medici italiani per \
+esteso e nella forma corretta ("ritorno della circolazione spontanea", non "circolo \
+spontaneo").
+5. NUMERI: usa SOLO numeri presenti nell'abstract o nella sintesi di QUELL'articolo, \
+scritti in cifre (decimali con la virgola, migliaia col punto: 60.000; percentuali col \
+simbolo %). Puoi arrotondare solo premettendo "circa". NON calcolare numeri nuovi: \
+niente differenze, conversioni, rapporti o percentuali derivate.
+6. TERMINI INGLESI: racchiudi fra doppie parentesi quadre OGNI nome di rivista, nome o \
+acronimo di studio e termine tecnico inglese: [[Critical Care Medicine]], \
+[[point-of-care]], [[odds]], [[trial]]. Se la pronuncia inglese non si deduce dalla \
+grafia, aggiungi dopo una barra verticale come si legge: [[ICare-FASTER|Eye-Care Faster]], \
+[[ARDS|A R D S]]. Usa la parola italiana quando esiste ed è d'uso comune \
+(ecografia, sonda, finestra, versamento, esito).
+7. Frasi brevi, adatte all'ascolto: al massimo 30 parole per frase. Niente parentesi, \
+elenchi, virgolette doppie o abbreviazioni da leggere (scrivi "intervallo di \
+confidenza", non "IC"). Le sigle italiane d'uso comune (PS, TC, POCUS) vanno bene. Per \
+accuratezza diagnostica dì sensibilità e specificità a parole ("sensibilità del 90%").
+8. Non aggiungere nulla che non sia negli abstract o nelle sintesi.
+
+Rispondi SOLO con un array JSON: per primo l'oggetto dell'apertura, poi un oggetto per \
+articolo nello stesso ordine:
+[{{"pmid": "apertura", "testo": "Questa settimana ..."}}, {{"pmid": "...", "testo": "..."}}]
+
+ARTICOLI
+{blocchi}"""
+
+
 LOG_FILE = os.path.join(DIR_BASE, "newsletter_pocus.log")
 
 

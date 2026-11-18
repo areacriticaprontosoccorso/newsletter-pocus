@@ -62,6 +62,22 @@ Alla fine di ogni run (`avviso.py`, ultimo passo del workflow) il log del run vi
 
 Serve il secret `AVVISI_EMAIL` (l'indirizzo che riceve gli avvisi; senza, l'avviso va all'indirizzo mittente della newsletter). Non partono nelle prove (`dry_run`, `solo_*`). Un avviso che non riesce a partire non fa mai fallire il run. `avviso.py` è una copia identica nei tre repo (EM, POCUS, NIV): se lo modifichi, modificalo in tutti e tre.
 
+## Podcast (allegato alla mail)
+
+Ogni mercoledì, prima della mail, si genera il podcast della settimana: una voce, come quelli di EM e NIV Weekly Digest. La durata segue il numero di articoli (POCUS esce con 1-5 articoli: circa 35-42 parole di commento per articolo, più saluto e chiusura). Parte **allegato alla mail degli iscritti** come video MP4 (copertina, le schede degli articoli che scorrono mentre se ne parla, sottotitoli; in coda la locandina del corso POCUS con l'invito a voce e i loghi), o come MP3 se il video supera `MAIL_MAX_MB` (15 MB) o se schede e podcast insieme superano `MAIL_TOTALE_MAX_MB` (17 MB). Nella mail compare la riga «Podcast».
+
+- **Codice:** `podcast.py` è lo stesso file di newsletter-ps e Newsletter-NIV (copia identica in tutti e tre: se lo modifichi, modificalo ovunque). Testi e limiti nel blocco «PODCAST SETTIMANALE» di `config.py`: `PODCAST_INTRO`, `PODCAST_PROMPT` (copione sull'ecografia clinica), `PODCAST_PRONUNCIA_IT` e `PODCAST_GRAFIA_FONETICA` (POCUS, eFAST, VExUS, point-of-care…), `PODCAST_TITOLO`, `PODCAST_TEMA`.
+- **Passi:** copione scritto da Claude e controllato (ogni numero deve stare nell'abstract o nella sintesi), voce Gemini TTS, verifica con Whisper, MP3 e video. Le schede del video sono quelle essenziali di Instagram. Controlli della voce come in NIV (note di regia lette, rumori, punteggio minimo).
+- **Secret:** `GEMINI_API_KEY` (lo stesso di EM e NIV: la quota gratuita di Gemini si azzera ogni giorno e le tre newsletter escono in giorni diversi). Senza, o se qualcosa fallisce, la mail parte **senza** podcast e arriva l'avviso per email. Se l'invio con l'allegato fallisce, la mail si rispedisce senza.
+- **Spegnerlo:** variabile `PODCAST=0`.
+- **Telegram:** dopo i messaggi della newsletter il podcast va anche sul canale Telegram (`telegram_podcast.py`, uguale in POCUS e NIV): il video, che si guarda nell'app, o l'MP3 se il video supera i 49 MB che un bot può caricare. Testo in `TELEGRAM_PODCAST_TESTO`; `TELEGRAM_PODCAST = False` lo spegne. Non parte nelle prove (`dry_run`, `solo_podcast`, `solo_instagram`).
+- **Voce:** femminile (Gemini «Kore», `PODCAST_GEMINI_VOCE`), per distinguerla da EM e NIV (Charon). Altre voci femminili di Gemini: Aoede, Leda, Sulafat, Erinome.
+- **Mail più leggera:** col video in allegato le schede PNG non si allegano, perché scorrono già nel video (`MAIL_SCHEDE_NEL_VIDEO`); con l'MP3 o senza podcast si allegano come sempre.
+- **Instagram, Facebook, YouTube:** dopo il carosello e il Reel delle schede esce il Reel con l'estratto del podcast (60-90 s, poi i saluti sui loghi), anche come Reel su Facebook e Short su YouTube; su YouTube anche il podcast completo. `IG_REEL_PODCAST = False` spegne il Reel.
+- **Solo podcast:** Actions → POCUS Weekly Digest → *Run workflow* → spunta **solo_podcast**. Selezione e sintesi come una corsa vera, poi la mail col podcast **solo a te** (secret `AVVISI_EMAIL`; se manca, la casella della newsletter), oggetto «[Prova podcast]». Niente iscritti, Telegram o social. Costa una corsa di Claude e di Gemini.
+- **Prova:** il run con `dry_run` genera il podcast senza inviare nulla; lo trovi nell'artifact, cartella `podcast/`.
+- **Musica:** con `musica/podcast.mp3` nel repo, tappeto sotto la voce e credito nella riga della mail.
+
 ## Instagram
 
 Il mercoledì, dopo la mail, esce su Instagram **un carosello** con le schede degli articoli e la locandina del corso POCUS. Le diapositive sono
