@@ -11,6 +11,7 @@ on:
       - 'podcast.py'
       - 'telegram_podcast.py'
       - 'youtube.py'
+      - 'linkedin.py'
       - 'corsi.json'
       - 'corsi.esempio.json'
       - 'newsletter_pocus.py'
@@ -84,6 +85,9 @@ env:
   YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
   YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
   YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+  LINKEDIN_TOKEN: ${{ secrets.LINKEDIN_TOKEN }}
+  LINKEDIN_AUTORE: ${{ secrets.LINKEDIN_AUTORE }}
+  LINKEDIN_SCADENZA: ${{ secrets.LINKEDIN_SCADENZA }}
 
 jobs:
   tests:
